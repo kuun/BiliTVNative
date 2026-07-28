@@ -49,6 +49,7 @@ internal class SearchVideoRepository(
       "pagesize" to "20",
       "order" to order,
     )
+    searchType.appendApiParams(params)
 
     val signedParams = if (keys != null) {
       wbiSigner.sign(params, keys.imgKey, keys.subKey)
@@ -82,18 +83,21 @@ internal class SearchVideoRepository(
           SearchContentType.Video -> item
             .takeIf { it.string("bvid").isNotBlank() }
             ?.let(VideoSummaryMappers::fromSearch)
-          SearchContentType.Bangumi -> item
+          else -> item
             .takeIf {
-              it.long("season_id") > 0L ||
-                it.long("pgc_season_id") > 0L ||
-                it.long("media_id") > 0L
+              searchType.matchesPgcItem(it) &&
+                (
+                  it.long("season_id") > 0L ||
+                    it.long("pgc_season_id") > 0L ||
+                    it.long("media_id") > 0L
+                  )
             }
             ?.let(VideoSummaryMappers::fromPgcSearch)
         }
       }
     return when (searchType) {
       SearchContentType.Video -> summaries
-      SearchContentType.Bangumi -> {
+      else -> {
         val cachedSummaries = summaries.applyPgcSearchMetadataCache()
         Log.i(
           SearchLogTag,
@@ -284,11 +288,37 @@ internal class SearchVideoRepository(
 
 }
 
-enum class SearchContentType(val apiType: String) {
+enum class SearchContentType(
+  val apiType: String,
+  private val pgcSeasonType: Int = PgcSeasonTypeAny,
+) {
   Video("video"),
   Bangumi("media_bangumi"),
+  Tv("media_ft", PgcSeasonTypeTv),
+  Movie("media_ft", PgcSeasonTypeMovie),
+  Documentary("media_ft", PgcSeasonTypeDocumentary),
+  ;
+
+  val isPgc: Boolean
+    get() = this != Video
+
+  fun matchesPgcItem(item: JsonObject): Boolean {
+    if (!isPgc) return false
+    if (pgcSeasonType == PgcSeasonTypeAny) return true
+    return item.int("season_type") == pgcSeasonType
+  }
+
+  fun appendApiParams(params: MutableMap<String, String>) {
+    if (pgcSeasonType != PgcSeasonTypeAny) {
+      params["season_type"] = pgcSeasonType.toString()
+    }
+  }
 }
 
+private const val PgcSeasonTypeAny = 0
+private const val PgcSeasonTypeMovie = 2
+private const val PgcSeasonTypeDocumentary = 3
+private const val PgcSeasonTypeTv = 5
 private const val PgcSearchMetadataConcurrency = 4
 private const val PgcSearchMetadataCacheMaxSize = 128
 private const val PgcSearchMetadataCacheLoadFactor = 0.75f

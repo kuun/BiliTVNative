@@ -146,7 +146,7 @@ internal class SearchViewModel(
           page = pageToLoad,
           order = orderToLoad,
           searchType = current.selectedContentType(),
-          enrichPgcSearch = current.selectedContentType() != SearchContentType.Bangumi,
+          enrichPgcSearch = !current.selectedContentType().isPgc,
         )
         loadedVideos = nextVideos
         val latest = _viewState.value
@@ -180,7 +180,7 @@ internal class SearchViewModel(
       }
       val latest = _viewState.value
       _viewState.value = latest.copy(resultState = nextState)
-      if (current.selectedContentType() == SearchContentType.Bangumi) {
+      if (current.selectedContentType().isPgc) {
         enrichVisibleBangumiResults(
           requestQuery = query,
           requestOrderKey = orderToLoad,
@@ -224,7 +224,7 @@ internal class SearchViewModel(
           page = FirstPage,
           order = orderKey,
           searchType = contentType,
-          enrichPgcSearch = contentType != SearchContentType.Bangumi,
+          enrichPgcSearch = !contentType.isPgc,
         )
         if (videos.isEmpty()) {
           SearchResultState.Empty
@@ -253,7 +253,7 @@ internal class SearchViewModel(
         return@launch
       }
       _viewState.value = latest.copy(resultState = nextState)
-      if (contentType == SearchContentType.Bangumi && nextState is SearchResultState.Success) {
+      if (contentType.isPgc && nextState is SearchResultState.Success) {
         enrichVisibleBangumiResults(
           requestQuery = query,
           requestOrderKey = orderKey,
@@ -344,6 +344,9 @@ internal data class SearchContentTypeOption(
 internal val SearchContentTypeOptions = listOf(
   SearchContentTypeOption("video", R.string.search_type_video, SearchContentType.Video),
   SearchContentTypeOption("bangumi", R.string.search_type_bangumi, SearchContentType.Bangumi),
+  SearchContentTypeOption("tv", R.string.search_type_tv, SearchContentType.Tv),
+  SearchContentTypeOption("movie", R.string.search_type_movie, SearchContentType.Movie),
+  SearchContentTypeOption("documentary", R.string.search_type_documentary, SearchContentType.Documentary),
 )
 
 internal val SearchSortOptions = listOf(

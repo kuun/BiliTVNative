@@ -81,18 +81,23 @@ import com.kirin.bilitv.ui.theme.LocalHomeColors
 
 @Stable
 internal class SearchFocusState {
-  var focusFirstResult by mutableStateOf(true)
+  var focusContentTypeTab by mutableStateOf(true)
   var focusedResultIndex by mutableIntStateOf(0)
   var focusedResultKey by mutableStateOf("")
 
   fun clear() {
-    focusFirstResult = true
+    focusContentTypeTab = true
     focusedResultIndex = 0
     focusedResultKey = ""
   }
 
-  fun resetForSortChange() {
-    focusFirstResult = false
+  fun resetForContentTypeChange() {
+    focusContentTypeTab = true
+    focusedResultIndex = 0
+    focusedResultKey = ""
+  }
+
+  fun resetForOrderChange() {
     focusedResultIndex = 0
     focusedResultKey = ""
   }
@@ -447,13 +452,13 @@ private fun SearchTouchResultsView(
       selectedOrderKey = viewState.selectedOrderKey,
       onContentTypeSelected = { contentTypeKey ->
         if (contentTypeKey != viewState.selectedContentTypeKey) {
-          focusState.resetForSortChange()
+          focusState.resetForContentTypeChange()
         }
         viewModel.selectContentType(contentTypeKey)
       },
       onOrderSelected = { orderKey ->
         if (orderKey != viewState.selectedOrderKey) {
-          focusState.resetForSortChange()
+          focusState.resetForOrderChange()
         }
         viewModel.selectOrder(orderKey)
       },
@@ -939,6 +944,16 @@ private fun SearchResultsView(
   }
   val selectedContentTypeKey = viewState.selectedContentTypeKey
   val selectedOrderKey = viewState.selectedOrderKey
+  LaunchedEffect(query, selectedContentTypeKey, focusState.focusContentTypeTab) {
+    if (focusState.focusContentTypeTab) {
+      withFrameNanos { }
+      runCatching {
+        contentTypeFocusRequesters.getValue(selectedContentTypeKey).requestFocus()
+      }.onSuccess {
+        focusState.focusContentTypeTab = false
+      }
+    }
+  }
 
   Column(
     modifier = Modifier
@@ -962,13 +977,13 @@ private fun SearchResultsView(
       onMoveLeftToNav = onMoveLeftToNav,
       onContentTypeSelected = { contentTypeKey ->
         if (contentTypeKey != viewState.selectedContentTypeKey) {
-          focusState.resetForSortChange()
+          focusState.resetForContentTypeChange()
         }
         viewModel.selectContentType(contentTypeKey)
       },
       onOrderSelected = { orderKey ->
         if (orderKey != viewState.selectedOrderKey) {
-          focusState.resetForSortChange()
+          focusState.resetForOrderChange()
         }
         viewModel.selectOrder(orderKey)
       },
@@ -998,10 +1013,8 @@ private fun SearchResultsView(
           ),
           restoreFocusRequestKey = restoreFocusRequestKey,
           onRestoreFocusHandled = onRestoreFocusHandled,
-          focusFirstResult = focusState.focusFirstResult,
-          onFirstResultFocused = {
-            focusState.focusFirstResult = false
-          },
+          focusFirstResult = false,
+          onFirstResultFocused = {},
           onFocusedIndexChange = { index, video ->
             focusState.focusedResultIndex = index
             focusState.focusedResultKey = video.focusRestoreKey()
@@ -1061,6 +1074,7 @@ private fun SearchResultsHeader(
               sortFocusRequesters.getValue(selectedOrderKey).requestFocus()
             }.isSuccess
           },
+          onMoveUp = null,
           onSelected = {
             onContentTypeSelected(option.key)
           },
@@ -1088,6 +1102,11 @@ private fun SearchResultsHeader(
               firstResultFocusRequester.requestFocus()
             }.isSuccess
           },
+          onMoveUp = {
+            runCatching {
+              contentTypeFocusRequesters.getValue(selectedContentTypeKey).requestFocus()
+            }.isSuccess
+          },
           onSelected = {
             onOrderSelected(option.key)
           },
@@ -1104,6 +1123,7 @@ private fun SearchSortButton(
   modifier: Modifier = Modifier,
   onMoveLeftToNav: (() -> Boolean)? = null,
   onMoveDownToResults: () -> Boolean,
+  onMoveUp: (() -> Boolean)?,
   onSelected: () -> Unit,
 ) {
   var focused by remember { mutableStateOf(false) }
@@ -1161,6 +1181,8 @@ private fun SearchSortButton(
         when {
           event.type == KeyEventType.KeyDown && event.key == Key.DirectionLeft ->
             if (onMoveLeftToNav != null) onMoveLeftToNav() else false
+          event.type == KeyEventType.KeyDown && event.key == Key.DirectionUp ->
+            if (onMoveUp != null) onMoveUp() else false
           event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown -> onMoveDownToResults()
           event.type == KeyEventType.KeyUp && event.key.isConfirmKey() -> {
             onSelected()

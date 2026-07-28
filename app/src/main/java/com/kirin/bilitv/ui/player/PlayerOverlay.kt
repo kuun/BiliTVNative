@@ -2706,6 +2706,15 @@ private fun Int.formatCompactCountText(): String {
 }
 
 @Composable
+private fun Long.formatCompactCountText(): String {
+  return when {
+    this >= 100_000_000L -> stringResource(R.string.player_count_yi, this / 100_000_000.0)
+    this >= 10_000L -> stringResource(R.string.player_count_wan, this / 10_000.0)
+    else -> toString()
+  }
+}
+
+@Composable
 private fun Float.areaText(): String {
   return stringResource(areaTextRes())
 }

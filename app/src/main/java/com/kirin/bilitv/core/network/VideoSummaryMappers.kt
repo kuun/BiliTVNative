@@ -16,7 +16,7 @@ internal object VideoSummaryMappers {
       ownerName = owner?.string("name").orEmpty(),
       ownerFace = fixPicUrl(owner?.string("face").orEmpty()),
       ownerMid = owner?.long("mid") ?: 0L,
-      view = BiliNumberParser.toInt(stat?.get("view")),
+      view = BiliNumberParser.toLong(stat?.get("view")),
       danmaku = BiliNumberParser.toInt(stat?.get("danmaku")),
       duration = BiliNumberParser.parseDuration(json["duration"]),
       pubdate = json.long("pubdate"),
@@ -46,7 +46,7 @@ internal object VideoSummaryMappers {
       ownerName = author?.string("name").orEmpty(),
       ownerFace = fixPicUrl(author?.string("face").orEmpty()),
       ownerMid = author?.long("mid") ?: 0L,
-      view = BiliNumberParser.toInt(stat?.get("play") ?: stat?.get("view")),
+      view = BiliNumberParser.toLong(stat?.get("play") ?: stat?.get("view")),
       danmaku = BiliNumberParser.toInt(stat?.get("danmaku")),
       duration = BiliNumberParser.parseDuration(archive["duration_text"]),
       pubdate = author?.long("pub_ts") ?: 0L,
@@ -71,7 +71,7 @@ internal object VideoSummaryMappers {
       ownerName = json.string("author_name"),
       ownerFace = fixPicUrl(json.string("author_face")),
       ownerMid = json.long("author_mid"),
-      view = BiliNumberParser.toInt(json.obj("stat")?.get("view")),
+      view = BiliNumberParser.toLong(json.obj("stat")?.get("view")),
       danmaku = BiliNumberParser.toInt(json.obj("stat")?.get("danmaku")),
       duration = BiliNumberParser.parseDuration(json["duration"]),
       pubdate = json.long("pubdate"),
@@ -94,7 +94,7 @@ internal object VideoSummaryMappers {
       ownerName = json.string("author"),
       ownerFace = fixPicUrl(json.searchOwnerFace()),
       ownerMid = json.long("mid"),
-      view = BiliNumberParser.toInt(json["play"]),
+      view = BiliNumberParser.toLong(json["play"]),
       danmaku = BiliNumberParser.toInt(json["danmaku"]),
       duration = BiliNumberParser.parseDuration(json["duration"]),
       pubdate = json.long("pubdate"),
@@ -112,12 +112,20 @@ internal object VideoSummaryMappers {
       title = stripHtmlTags(json.string("title")),
       pic = fixPicUrl(json.string("cover")),
       ownerName = json.string("season_type_name"),
-      ownerFace = "",
+      ownerFace = fixPicUrl(json.string("cover")),
       ownerMid = 0L,
-      view = 0,
-      danmaku = 0,
+      view = BiliNumberParser.parseCountText(
+        json.string("subtitle")
+          .ifBlank { json.string("desc") }
+          .ifBlank { json.string("evaluate") },
+      ),
+      danmaku = BiliNumberParser.toInt(
+        json["danmaku"]
+          ?: json["danmaku_count"]
+          ?: json["dm"],
+      ),
       duration = 0,
-      pubdate = json.long("pubtime"),
+      pubdate = json.long("pub_time").takeIf { it > 0L } ?: json.long("pubtime"),
       badge = filterBadge(
         json.string("index_show")
           .ifBlank { json.string("season_type_name") },
@@ -137,7 +145,7 @@ internal object VideoSummaryMappers {
       ownerName = json.string("author"),
       ownerFace = "",
       ownerMid = json.long("mid"),
-      view = BiliNumberParser.toInt(json["play"]),
+      view = BiliNumberParser.toLong(json["play"]),
       danmaku = BiliNumberParser.toInt(json["video_review"]),
       duration = BiliNumberParser.parseDuration(json["length"]),
       pubdate = json.long("created"),
@@ -152,7 +160,7 @@ internal object VideoSummaryMappers {
       .ifBlank { obj("owner")?.string("face").orEmpty() }
   }
 
-  private fun fixPicUrl(url: String): String {
+  fun fixPicUrl(url: String): String {
     return when {
       url.startsWith("//") -> "https:$url"
       url.startsWith("http://") -> "https://${url.removePrefix("http://")}"

@@ -113,13 +113,19 @@ class VideoRepository(
     page: Int = 1,
     order: String = SearchOrderTotalRank,
     searchType: SearchContentType = SearchContentType.Video,
+    enrichPgcSearch: Boolean = true,
   ): List<VideoSummary> {
     return searchVideoRepository.searchVideos(
       keyword = keyword,
       page = page,
       order = order,
       searchType = searchType,
+      enrichPgcSearch = enrichPgcSearch,
     )
+  }
+
+  suspend fun enrichPgcSearchVideos(videos: List<VideoSummary>): List<VideoSummary> {
+    return searchVideoRepository.enrichPgcSearchVideos(videos)
   }
 
   suspend fun getSearchSuggestions(keyword: String): List<String> {

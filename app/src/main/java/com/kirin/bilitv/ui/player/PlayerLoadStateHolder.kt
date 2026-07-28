@@ -285,7 +285,7 @@ private fun PlaybackRequest.withResolvedMetadata(
     ownerName = ownerName.ifBlank { metadata?.ownerName.orEmpty() },
     ownerFace = ownerFace.ifBlank { metadata?.ownerFace.orEmpty() },
     ownerMid = ownerMid.takeIf { it > 0L } ?: metadata?.ownerMid ?: 0L,
-    viewCount = viewCount.takeIf { it > 0 } ?: metadata?.viewCount ?: 0,
+    viewCount = viewCount.takeIf { it > 0L } ?: metadata?.viewCount ?: 0L,
     danmakuCount = danmakuCount.takeIf { it > 0 } ?: metadata?.danmakuCount ?: 0,
     pubdate = pubdate.takeIf { it > 0L } ?: metadata?.pubdate ?: 0L,
     pgcEpisodeId = pgcEpisodeId.takeIf { it > 0L } ?: selectedEpisode?.pgcEpisodeId ?: 0L,

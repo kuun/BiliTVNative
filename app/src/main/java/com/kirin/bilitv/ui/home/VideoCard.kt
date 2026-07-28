@@ -715,13 +715,17 @@ private fun StandardCoverMetadata(video: VideoSummary, modifier: Modifier = Modi
       modifier = Modifier.weight(1f),
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      VideoMetric(
-        iconRes = R.drawable.ic_video_play_count,
-        contentDescription = stringResource(R.string.video_play_count_content_description),
-        text = video.view.formatCompactCountText(),
-      )
-      if (video.danmaku > 0) {
+      if (video.view > 0L) {
+        VideoMetric(
+          iconRes = R.drawable.ic_video_play_count,
+          contentDescription = stringResource(R.string.video_play_count_content_description),
+          text = video.view.formatCompactCountText(),
+        )
+      }
+      if (video.view > 0L && video.danmaku > 0) {
         Spacer(modifier = Modifier.width(BiliSpacing.Sm))
+      }
+      if (video.danmaku > 0) {
         VideoMetric(
           iconRes = R.drawable.ic_video_danmaku_count,
           contentDescription = stringResource(R.string.video_danmaku_count_content_description),
@@ -729,14 +733,16 @@ private fun StandardCoverMetadata(video: VideoSummary, modifier: Modifier = Modi
         )
       }
     }
-    Text(
-      text = video.durationText(),
-      color = homeColors.textPrimary,
-      fontSize = BiliTypography.CardOverlay,
-      lineHeight = BiliTypography.CardOverlayLineHeight,
-      fontWeight = FontWeight.Bold,
-      maxLines = 1,
-    )
+    if (video.duration > 0) {
+      Text(
+        text = video.durationText(),
+        color = homeColors.textPrimary,
+        fontSize = BiliTypography.CardOverlay,
+        lineHeight = BiliTypography.CardOverlayLineHeight,
+        fontWeight = FontWeight.Bold,
+        maxLines = 1,
+      )
+    }
   }
 }
 
@@ -878,6 +884,15 @@ private fun Int.formatCompactCountText(): String {
   return when {
     this >= 100_000_000 -> stringResource(R.string.video_count_yi, this / 100_000_000.0)
     this >= 10_000 -> stringResource(R.string.video_count_wan, this / 10_000.0)
+    else -> toString()
+  }
+}
+
+@Composable
+private fun Long.formatCompactCountText(): String {
+  return when {
+    this >= 100_000_000L -> stringResource(R.string.video_count_yi, this / 100_000_000.0)
+    this >= 10_000L -> stringResource(R.string.video_count_wan, this / 10_000.0)
     else -> toString()
   }
 }

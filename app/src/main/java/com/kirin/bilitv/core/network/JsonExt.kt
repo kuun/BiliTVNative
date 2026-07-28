@@ -7,7 +7,6 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
 internal fun JsonElement?.asObjectOrNull(): JsonObject? {
@@ -15,19 +14,19 @@ internal fun JsonElement?.asObjectOrNull(): JsonObject? {
 }
 
 internal fun JsonObject.string(name: String): String {
-  return this[name]?.jsonPrimitive?.contentOrNull.orEmpty()
+  return (this[name] as? JsonPrimitive)?.contentOrNull.orEmpty()
 }
 
 internal fun JsonObject.int(name: String): Int {
-  return this[name]?.jsonPrimitive?.intOrNull ?: 0
+  return (this[name] as? JsonPrimitive)?.intOrNull ?: 0
 }
 
 internal fun JsonObject.long(name: String): Long {
-  return this[name]?.jsonPrimitive?.longOrNull ?: 0L
+  return (this[name] as? JsonPrimitive)?.longOrNull ?: 0L
 }
 
 internal fun JsonObject.boolean(name: String): Boolean {
-  return this[name]?.jsonPrimitive?.booleanOrNull ?: false
+  return (this[name] as? JsonPrimitive)?.booleanOrNull ?: false
 }
 
 internal fun JsonObject.obj(name: String): JsonObject? {
@@ -41,4 +40,3 @@ internal fun JsonElement.rootObject(): JsonObject {
 internal fun JsonPrimitive.stringOrEmpty(): String {
   return contentOrNull.orEmpty()
 }
-

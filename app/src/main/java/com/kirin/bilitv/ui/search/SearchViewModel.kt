@@ -139,13 +139,16 @@ internal class SearchViewModel(
 
     nextPageJob?.cancel()
     nextPageJob = viewModelScope.launch {
+      var loadedVideos = emptyList<VideoSummary>()
       val nextState = try {
         val nextVideos = videoRepository.searchVideos(
           keyword = query,
           page = pageToLoad,
           order = orderToLoad,
           searchType = current.selectedContentType(),
+          enrichPgcSearch = current.selectedContentType() != SearchContentType.Bangumi,
         )
+        loadedVideos = nextVideos
         val latest = _viewState.value
         val latestState = latest.resultState as? SearchResultState.Success ?: return@launch
         if (
@@ -177,6 +180,14 @@ internal class SearchViewModel(
       }
       val latest = _viewState.value
       _viewState.value = latest.copy(resultState = nextState)
+      if (current.selectedContentType() == SearchContentType.Bangumi) {
+        enrichVisibleBangumiResults(
+          requestQuery = query,
+          requestOrderKey = orderToLoad,
+          requestContentTypeKey = current.selectedContentTypeKey,
+          videos = loadedVideos,
+        )
+      }
     }
   }
 
@@ -213,6 +224,7 @@ internal class SearchViewModel(
           page = FirstPage,
           order = orderKey,
           searchType = contentType,
+          enrichPgcSearch = contentType != SearchContentType.Bangumi,
         )
         if (videos.isEmpty()) {
           SearchResultState.Empty
@@ -241,7 +253,41 @@ internal class SearchViewModel(
         return@launch
       }
       _viewState.value = latest.copy(resultState = nextState)
+      if (contentType == SearchContentType.Bangumi && nextState is SearchResultState.Success) {
+        enrichVisibleBangumiResults(
+          requestQuery = query,
+          requestOrderKey = orderKey,
+          requestContentTypeKey = contentTypeKey,
+          videos = nextState.videos,
+          firstPageRequestId = requestId,
+        )
+      }
     }
+  }
+
+  private suspend fun enrichVisibleBangumiResults(
+    requestQuery: String,
+    requestOrderKey: String,
+    requestContentTypeKey: String,
+    videos: List<VideoSummary>,
+    firstPageRequestId: Int? = null,
+  ) {
+    val enrichedVideos = videoRepository.enrichPgcSearchVideos(videos)
+    val latest = _viewState.value
+    val latestState = latest.resultState as? SearchResultState.Success ?: return
+    if (
+      latest.activeQuery != requestQuery ||
+      latest.selectedOrderKey != requestOrderKey ||
+      latest.selectedContentTypeKey != requestContentTypeKey ||
+      (firstPageRequestId != null && this.firstPageRequestId != firstPageRequestId)
+    ) {
+      return
+    }
+    _viewState.value = latest.copy(
+      resultState = latestState.copy(
+        videos = latestState.videos.replaceBySearchKey(enrichedVideos),
+      ),
+    )
   }
 
   companion object {
@@ -315,11 +361,19 @@ private fun List<VideoSummary>.appendUniqueByBvid(nextVideos: List<VideoSummary>
   return this + nextVideos.filter { video -> knownKeys.add(video.searchUniqueKey()) }
 }
 
+private fun List<VideoSummary>.replaceBySearchKey(enrichedVideos: List<VideoSummary>): List<VideoSummary> {
+  if (enrichedVideos.isEmpty()) {
+    return this
+  }
+  val enrichedByKey = enrichedVideos.associateBy { video -> video.searchUniqueKey() }
+  return map { video -> enrichedByKey[video.searchUniqueKey()] ?: video }
+}
+
 private fun VideoSummary.searchUniqueKey(): String {
   return when {
-    bvid.isNotBlank() -> "bvid-$bvid"
     pgcSeasonId > 0L -> "pgc-season-$pgcSeasonId"
     pgcEpisodeId > 0L -> "pgc-episode-$pgcEpisodeId"
+    bvid.isNotBlank() -> "bvid-$bvid"
     cid > 0L -> "cid-$cid"
     else -> title
   }

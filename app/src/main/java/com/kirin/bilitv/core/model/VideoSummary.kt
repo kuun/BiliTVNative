@@ -7,7 +7,7 @@ data class VideoSummary(
   val ownerName: String,
   val ownerFace: String,
   val ownerMid: Long,
-  val view: Int,
+  val view: Long,
   val danmaku: Int,
   val duration: Int,
   val pubdate: Long,

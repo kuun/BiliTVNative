@@ -157,7 +157,7 @@ class PlaybackRepository(
       ownerName = owner?.string("name").orEmpty(),
       ownerFace = owner?.string("face").orEmpty(),
       ownerMid = owner?.long("mid") ?: 0L,
-      viewCount = BiliNumberParser.toInt(stat?.get("view")),
+      viewCount = BiliNumberParser.toLong(stat?.get("view")),
       danmakuCount = BiliNumberParser.toInt(stat?.get("danmaku")),
       pubdate = data.long("pubdate"),
       pages = pages,
@@ -213,7 +213,7 @@ class PlaybackRepository(
       ownerName = upInfo?.string("uname").orEmpty(),
       ownerFace = upInfo?.string("avatar").orEmpty(),
       ownerMid = upInfo?.long("mid") ?: 0L,
-      viewCount = BiliNumberParser.toInt(stat?.get("views")),
+      viewCount = BiliNumberParser.toLong(stat?.get("views")),
       danmakuCount = BiliNumberParser.toInt(stat?.get("danmakus")),
       pubdate = selectedEpisode?.let { episode ->
         (result["episodes"] as? JsonArray)

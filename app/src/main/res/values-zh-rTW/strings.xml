@@ -99,6 +99,8 @@
     <string name="search_no_suggestions">暫無建議，按搜尋鍵直接搜尋</string>
     <string name="search_suggestions_title">搜尋建議</string>
     <string name="search_results_title">搜尋結果：%1$s</string>
+    <string name="search_type_video">影片</string>
+    <string name="search_type_bangumi">番劇</string>
     <string name="search_sort_totalrank">綜合排序</string>
     <string name="search_sort_click">最多播放</string>
     <string name="search_sort_pubdate">最新發布</string>

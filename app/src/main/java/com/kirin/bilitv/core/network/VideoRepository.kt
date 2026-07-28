@@ -112,11 +112,13 @@ class VideoRepository(
     keyword: String,
     page: Int = 1,
     order: String = SearchOrderTotalRank,
+    searchType: SearchContentType = SearchContentType.Video,
   ): List<VideoSummary> {
     return searchVideoRepository.searchVideos(
       keyword = keyword,
       page = page,
       order = order,
+      searchType = searchType,
     )
   }
 

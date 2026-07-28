@@ -66,13 +66,17 @@ class PlaybackRepository(
       "playurl codec requested=${codecPreference.key} effective=${effectiveCodecPreference.key} fnval=$fnval qn=$requestedQualityId",
     )
     val params = mutableMapOf(
-      "bvid" to request.bvid,
-      "cid" to request.cid.toString(),
       "qn" to requestedQualityId.toString(),
       "fnval" to fnval.toString(),
       "fourk" to "1",
     )
-    val keys = wbiKeyRepository.ensureKeys(sessData)
+    if (request.pgcEpisodeId > 0L) {
+      params["ep_id"] = request.pgcEpisodeId.toString()
+    } else {
+      params["bvid"] = request.bvid
+      params["cid"] = request.cid.toString()
+    }
+    val keys = if (request.pgcEpisodeId > 0L) null else wbiKeyRepository.ensureKeys(sessData)
     val signedParams = if (keys != null) {
       wbiSigner.sign(params, keys.imgKey, keys.subKey)
     } else {
@@ -81,7 +85,7 @@ class PlaybackRepository(
 
     val headers = BiliPlaybackHeaders(sessData = sessData, biliJct = biliJct)
     val root = apiClient.getJsonWithHeaders(
-      url = BiliApiEndpoints.PlayUrl,
+      url = if (request.pgcEpisodeId > 0L) BiliApiEndpoints.PgcPlayUrl else BiliApiEndpoints.PlayUrl,
       params = signedParams,
       headers = headers.asMap(),
     ).rootObject()
@@ -89,7 +93,7 @@ class PlaybackRepository(
     return parsePlaybackInfo(
       request = request,
       headers = headers,
-      data = root.obj("data") ?: JsonObject(emptyMap()),
+      data = root.obj("data") ?: root.obj("result") ?: JsonObject(emptyMap()),
       requestedQualityId = requestedQualityId,
       codecPreference = effectiveCodecPreference,
       codecCapability = codecCapability,
@@ -114,6 +118,10 @@ class PlaybackRepository(
   }
 
   suspend fun getVideoMetadata(request: PlaybackRequest): PlaybackVideoMetadata {
+    if (request.pgcSeasonId > 0L || request.pgcEpisodeId > 0L) {
+      return getPgcVideoMetadata(request)
+    }
+
     val root = apiClient.getJson(
       url = BiliApiEndpoints.View,
       params = mapOf("bvid" to request.bvid),
@@ -131,6 +139,8 @@ class PlaybackRepository(
           page = page.int("page"),
           title = page.string("part").ifBlank { page.string("page_part") },
           durationSeconds = BiliNumberParser.parseDuration(page["duration"]),
+          bvid = data.string("bvid").ifBlank { request.bvid },
+          aid = data.long("aid"),
         )
       }
       ?.filter { episode -> episode.cid > 0L }
@@ -151,6 +161,67 @@ class PlaybackRepository(
       danmakuCount = BiliNumberParser.toInt(stat?.get("danmaku")),
       pubdate = data.long("pubdate"),
       pages = pages,
+    )
+  }
+
+  private suspend fun getPgcVideoMetadata(request: PlaybackRequest): PlaybackVideoMetadata {
+    val params = when {
+      request.pgcSeasonId > 0L -> mapOf("season_id" to request.pgcSeasonId.toString())
+      request.pgcEpisodeId > 0L -> mapOf("ep_id" to request.pgcEpisodeId.toString())
+      else -> emptyMap()
+    }
+    val sessData = sessionStore.sessData.first()
+    val root = apiClient.getJson(
+      url = BiliApiEndpoints.PgcSeason,
+      params = params,
+      sessData = sessData,
+    ).rootObject()
+    root.requireBiliCodeOk("pgc season")
+
+    val result = root.obj("result") ?: JsonObject(emptyMap())
+    val episodes = (result["episodes"] as? JsonArray)
+      ?.mapIndexedNotNull { index, element ->
+        val episode = element.asObjectOrNull() ?: return@mapIndexedNotNull null
+        PlaybackEpisode(
+          cid = episode.long("cid"),
+          page = index + 1,
+          title = episode.string("show_title")
+            .ifBlank { episode.string("long_title") }
+            .ifBlank { episode.string("title") },
+          durationSeconds = (episode.long("duration") / 1000L).toInt(),
+          bvid = episode.string("bvid"),
+          aid = episode.long("aid"),
+          pgcEpisodeId = episode.long("ep_id").takeIf { it > 0L } ?: episode.long("id"),
+        )
+      }
+      ?.filter { episode -> episode.cid > 0L || episode.pgcEpisodeId > 0L }
+      .orEmpty()
+    val selectedEpisode = episodes.firstOrNull { episode ->
+      (request.pgcEpisodeId > 0L && episode.pgcEpisodeId == request.pgcEpisodeId) ||
+        (request.cid > 0L && episode.cid == request.cid)
+    } ?: episodes.firstOrNull()
+    val stat = result.obj("stat")
+    val upInfo = result.obj("up_info")
+
+    return PlaybackVideoMetadata(
+      aid = selectedEpisode?.aid ?: 0L,
+      bvid = selectedEpisode?.bvid.orEmpty().ifBlank { request.bvid },
+      cid = selectedEpisode?.cid ?: request.cid,
+      title = result.string("title")
+        .ifBlank { result.string("season_title") }
+        .ifBlank { request.title },
+      ownerName = upInfo?.string("uname").orEmpty(),
+      ownerFace = upInfo?.string("avatar").orEmpty(),
+      ownerMid = upInfo?.long("mid") ?: 0L,
+      viewCount = BiliNumberParser.toInt(stat?.get("views")),
+      danmakuCount = BiliNumberParser.toInt(stat?.get("danmakus")),
+      pubdate = selectedEpisode?.let { episode ->
+        (result["episodes"] as? JsonArray)
+          ?.mapNotNull { it.asObjectOrNull() }
+          ?.firstOrNull { item -> item.long("cid") == episode.cid || item.long("ep_id") == episode.pgcEpisodeId }
+          ?.long("pub_time")
+      } ?: 0L,
+      pages = episodes,
     )
   }
 

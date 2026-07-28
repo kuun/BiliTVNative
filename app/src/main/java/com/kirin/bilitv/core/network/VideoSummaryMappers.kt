@@ -102,6 +102,33 @@ internal object VideoSummaryMappers {
     )
   }
 
+  fun fromPgcSearch(json: JsonObject): VideoSummary {
+    val eps = json["eps"] as? kotlinx.serialization.json.JsonArray
+    val firstEp = eps
+      ?.firstOrNull()
+      ?.asObjectOrNull()
+    return VideoSummary(
+      bvid = "",
+      title = stripHtmlTags(json.string("title")),
+      pic = fixPicUrl(json.string("cover")),
+      ownerName = json.string("season_type_name"),
+      ownerFace = "",
+      ownerMid = 0L,
+      view = 0,
+      danmaku = 0,
+      duration = 0,
+      pubdate = json.long("pubtime"),
+      badge = filterBadge(
+        json.string("index_show")
+          .ifBlank { json.string("season_type_name") },
+      ),
+      pgcSeasonId = json.long("season_id").takeIf { it > 0L } ?: json.long("pgc_season_id"),
+      pgcEpisodeId = firstEp?.long("id") ?: 0L,
+      pgcTypeName = json.string("season_type_name"),
+      pgcIndexShow = json.string("index_show"),
+    )
+  }
+
   fun fromSpace(json: JsonObject): VideoSummary {
     return VideoSummary(
       bvid = json.string("bvid"),

@@ -15,16 +15,21 @@ internal fun PlaybackRequest.nextEpisodeCompletion(
 ): PlayerNextEpisodeCompletion? {
   val pages = metadata?.pages.orEmpty()
   val currentIndex = pages.indexOfFirst { episode ->
-    episode.cid == cid || (historyPage > 0 && episode.page == historyPage)
+    (pgcEpisodeId > 0L && episode.pgcEpisodeId == pgcEpisodeId) ||
+      episode.cid == cid ||
+      (historyPage > 0 && episode.page == historyPage)
   }
   val nextEpisode = pages.getOrNull(currentIndex + 1) ?: return null
   val nextRequest = copy(
+    bvid = nextEpisode.bvid.ifBlank { bvid },
     cid = nextEpisode.cid,
+    aid = nextEpisode.aid.takeIf { it > 0L } ?: aid,
     startPositionMs = 0L,
     preferredQualityId = selectedQualityId,
     forceStartPosition = true,
     historyPage = nextEpisode.page,
     advanceToNextHistoryEpisode = false,
+    pgcEpisodeId = nextEpisode.pgcEpisodeId.takeIf { it > 0L } ?: pgcEpisodeId,
   )
   return PlayerNextEpisodeCompletion(
     request = nextRequest,

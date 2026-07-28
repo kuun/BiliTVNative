@@ -4,6 +4,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 
+internal const val PlayerControlLogTag = "BiliTVNative:PlayerControl"
+
 internal class PlayerOverlayFocusStateHolder {
   val progressFocusedState = mutableStateOf(false)
   val focusedControlState = mutableStateOf(PlayerControl.Episodes)

@@ -14,6 +14,7 @@ import android.util.Log
 import android.view.PixelCopy
 import android.view.SurfaceView
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -591,7 +592,18 @@ fun PlayerScreen(
     }
   }
 
+  fun logControlEvent(event: String) {
+    Log.i(
+      PlayerControlLogTag,
+      "PlayerControl $event bvid=${displayRequest.bvid} cid=${displayRequest.cid} " +
+        "seasonId=${displayRequest.pgcSeasonId} epId=${displayRequest.pgcEpisodeId} " +
+        "activePanel=$activePanel pages=${metadata?.pages?.size ?: -1} " +
+        "state=${playerState.javaClass.simpleName}",
+    )
+  }
+
   fun openPanel(panel: PlayerPanel) {
+    logControlEvent("openPanel panel=$panel")
     if (panel != PlayerPanel.UpVideos) {
       showUnfollowConfirm = false
       unfollowConfirmFocusedConfirm = false
@@ -603,13 +615,55 @@ fun PlayerScreen(
       }?.takeIf { it >= 0 } ?: 0
       PlayerPanel.Speed -> PlayerSpeedOptions.indexOf(playbackSpeed).takeIf { it >= 0 } ?: 2
       PlayerPanel.Episodes -> metadata?.pages
-        ?.indexOfFirst { episode -> episode.cid == displayRequest.cid }
+        ?.indexOfFirst { episode ->
+          (displayRequest.pgcEpisodeId > 0L && episode.pgcEpisodeId == displayRequest.pgcEpisodeId) ||
+            episode.cid == displayRequest.cid
+        }
         ?.takeIf { it >= 0 } ?: 0
       else -> 0
 	    }
 	    overlayFocusStateHolder.clearProgressFocus()
 	    showControls()
-	  }
+  }
+
+  fun openEpisodesPanel() {
+    logControlEvent("openEpisodesPanel start")
+    if (!metadata?.pages.isNullOrEmpty()) {
+      logControlEvent("openEpisodesPanel useCachedMetadata")
+      openPanel(PlayerPanel.Episodes)
+      return
+    }
+    activePanel = PlayerPanel.Episodes
+    focusedPanelIndex = 0
+    overlayFocusStateHolder.clearProgressFocus()
+    showControls()
+    coroutineScope.launch {
+      logControlEvent("openEpisodesPanel resolveMetadata begin")
+      playerLoadStateHolder.resolveDisplayMetadata()
+      Log.i(
+        PlayerControlLogTag,
+        "openEpisodesPanel resolveMetadata end bvid=${displayRequest.bvid} cid=${displayRequest.cid} " +
+          "seasonId=${displayRequest.pgcSeasonId} epId=${displayRequest.pgcEpisodeId} " +
+          "activePanel=$activePanel pages=${playerLoadStateHolder.viewState.metadata?.pages?.size ?: -1}",
+      )
+      if (activePanel == PlayerPanel.Episodes) {
+        focusedPanelIndex = playerLoadStateHolder.viewState.metadata?.pages
+          ?.indexOfFirst { episode ->
+            (displayRequest.pgcEpisodeId > 0L && episode.pgcEpisodeId == displayRequest.pgcEpisodeId) ||
+              episode.cid == displayRequest.cid
+          }
+          ?.takeIf { it >= 0 } ?: 0
+        Log.i(
+          PlayerControlLogTag,
+          "openEpisodesPanel keepPanel focusedIndex=$focusedPanelIndex " +
+            "pages=${playerLoadStateHolder.viewState.metadata?.pages?.size ?: -1}",
+        )
+        showControls()
+      } else {
+        Log.i(PlayerControlLogTag, "openEpisodesPanel skippedPanel activePanel=$activePanel")
+      }
+    }
+  }
 
   suspend fun resolveDisplayMetadata() = playerLoadStateHolder.resolveDisplayMetadata()
 
@@ -890,10 +944,15 @@ fun PlayerScreen(
         coroutineScope.launch {
           saveAndReportProgressNow()
           val nextRequest = displayRequest.copy(
+            bvid = episode.bvid.ifBlank { displayRequest.bvid },
             cid = episode.cid,
+            aid = episode.aid.takeIf { it > 0L } ?: displayRequest.aid,
+            title = episode.title.ifBlank { displayRequest.title },
             startPositionMs = 0L,
             preferredQualityId = selectedQuality?.id,
             forceStartPosition = true,
+            historyPage = episode.page,
+            pgcEpisodeId = episode.pgcEpisodeId.takeIf { it > 0L } ?: displayRequest.pgcEpisodeId,
           )
           startPlaybackRequest(nextRequest, clearMetadata = false)
         }
@@ -1009,9 +1068,10 @@ fun PlayerScreen(
 	  }
 
   fun activateFocusedControl() {
+    logControlEvent("activateFocusedControl control=$focusedControl")
     when (focusedControl) {
       PlayerControl.Settings -> openPanel(PlayerPanel.Main)
-      PlayerControl.Episodes -> openPanel(PlayerPanel.Episodes)
+      PlayerControl.Episodes -> openEpisodesPanel()
       PlayerControl.Up -> openUpVideos(UpVideoOrderLatest)
       PlayerControl.Related -> {
         openVideoListPanel(
@@ -1024,7 +1084,15 @@ fun PlayerScreen(
     }
   }
 
+  fun activateControl(control: PlayerControl) {
+    logControlEvent("activateControl control=$control")
+    focusedControl = control
+    overlayFocusStateHolder.clearProgressFocus()
+    activateFocusedControl()
+  }
+
   fun openTouchPanel(panel: PlayerPanel) {
+    logControlEvent("openTouchPanel panel=$panel")
     if (activePanel == panel) {
       activePanel = PlayerPanel.None
       showControls()
@@ -1032,8 +1100,8 @@ fun PlayerScreen(
     }
     when (panel) {
       PlayerPanel.Main,
-      PlayerPanel.Danmaku,
-      PlayerPanel.Episodes -> openPanel(panel)
+      PlayerPanel.Danmaku -> openPanel(panel)
+      PlayerPanel.Episodes -> openEpisodesPanel()
       PlayerPanel.UpVideos -> openUpVideos(UpVideoOrderLatest)
       PlayerPanel.RelatedVideos -> {
         openVideoListPanel(
@@ -1160,6 +1228,14 @@ fun PlayerScreen(
       missingCidMessage = context.getString(R.string.player_error_missing_cid),
       emptyTracksMessage = context.getString(R.string.player_error_empty_tracks),
     ) ?: return@LaunchedEffect
+    if (
+      playerLoadStateHolder.viewState.displayRequest.pgcEpisodeId > 0L &&
+      playerLoadStateHolder.viewState.metadata == null
+    ) {
+      coroutineScope.launch {
+        playerLoadStateHolder.resolveDisplayMetadata()
+      }
+    }
     checkpointPlaybackSession(readyState.startPositionMs)
     try {
       val info = readyState.info
@@ -1318,6 +1394,14 @@ fun PlayerScreen(
     runCatching { controlsFocusRequester.requestFocus() }
   }
 
+  LaunchedEffect(playerState, displayRequest.bvid, displayRequest.cid, displayRequest.pgcEpisodeId) {
+    if (playerState is PlayerScreenState.Ready) {
+      withFrameNanos { }
+      runCatching { controlsFocusRequester.requestFocus() }
+      logControlEvent("readyFocusRequested")
+    }
+  }
+
   LaunchedEffect(controlsVisible, playerState, activePanel, previewPositionMs, playbackPaused, touchSeekActive) {
     if (controlsVisible && playerState is PlayerScreenState.Ready) {
       runCatching { controlsFocusRequester.requestFocus() }
@@ -1347,6 +1431,12 @@ fun PlayerScreen(
         if (event.type != KeyEventType.KeyDown) {
           return@onPreviewKeyEvent false
         }
+        Log.i(
+          PlayerControlLogTag,
+          "PlayerControl rootKey key=${event.key} controlsVisible=$controlsVisible " +
+            "activePanel=$activePanel progressFocused=$progressFocused touchMode=$touchMode " +
+            "state=${playerState.javaClass.simpleName}",
+        )
         if (showUnfollowConfirm) {
           return@onPreviewKeyEvent when (event.key) {
             Key.Back -> {
@@ -1473,6 +1563,9 @@ fun PlayerScreen(
       factory = { viewContext ->
         PlayerView(viewContext).apply {
           useController = false
+          isFocusable = false
+          isFocusableInTouchMode = false
+          descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
           keepScreenOn = true
           resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
           setShutterBackgroundColor(android.graphics.Color.BLACK)
@@ -1481,6 +1574,9 @@ fun PlayerScreen(
         }
       },
       update = { view ->
+        view.isFocusable = false
+        view.isFocusableInTouchMode = false
+        view.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         view.keepScreenOn = true
         view.player = player
         playerView = view
@@ -1608,6 +1704,7 @@ fun PlayerScreen(
             showClock = showClock,
             clockText = clockText,
             showMiniProgressBar = showMiniProgressBar,
+            onControlSelected = ::activateControl,
           )
         }
         PlayerSharedOverlay(
@@ -1877,6 +1974,8 @@ private fun VideoSummary.toPlaybackRequest(): PlaybackRequest {
     pubdate = pubdate,
     historyPage = historyPage,
     advanceToNextHistoryEpisode = advanceToNextEpisode,
+    pgcSeasonId = pgcSeasonId,
+    pgcEpisodeId = pgcEpisodeId,
   )
 }
 

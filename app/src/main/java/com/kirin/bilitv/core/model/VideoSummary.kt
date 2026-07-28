@@ -19,6 +19,10 @@ data class VideoSummary(
   val historyPart: String = "",
   val historyVideos: Int = 0,
   val isLive: Boolean = false,
+  val pgcSeasonId: Long = 0L,
+  val pgcEpisodeId: Long = 0L,
+  val pgcTypeName: String = "",
+  val pgcIndexShow: String = "",
 )
 
 const val ProgressUnset = -1

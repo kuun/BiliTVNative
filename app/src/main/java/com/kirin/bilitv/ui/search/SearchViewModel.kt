@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.kirin.bilitv.R
 import com.kirin.bilitv.core.model.VideoSummary
+import com.kirin.bilitv.core.network.SearchContentType
 import com.kirin.bilitv.core.network.VideoRepository
 import com.kirin.bilitv.core.storage.SearchHistoryStore
 import kotlinx.coroutines.CancellationException
@@ -74,6 +75,7 @@ internal class SearchViewModel(
       searchText = "",
       activeQuery = null,
       suggestions = emptyList(),
+      selectedContentTypeKey = SearchContentTypeOptions.first().key,
       selectedOrderKey = SearchSortOptions.first().key,
       resultState = SearchResultState.Loading,
     )
@@ -97,6 +99,20 @@ internal class SearchViewModel(
       resultState = SearchResultState.Loading,
     )
     loadFirstPage(query = query, orderKey = orderKey)
+  }
+
+  fun selectContentType(contentTypeKey: String) {
+    if (SearchContentTypeOptions.none { option -> option.key == contentTypeKey }) return
+
+    val current = _viewState.value
+    if (current.selectedContentTypeKey == contentTypeKey) return
+
+    val query = current.activeQuery ?: return
+    _viewState.value = current.copy(
+      selectedContentTypeKey = contentTypeKey,
+      resultState = SearchResultState.Loading,
+    )
+    loadFirstPage(query = query, orderKey = current.selectedOrderKey)
   }
 
   fun retry() {
@@ -128,12 +144,14 @@ internal class SearchViewModel(
           keyword = query,
           page = pageToLoad,
           order = orderToLoad,
+          searchType = current.selectedContentType(),
         )
         val latest = _viewState.value
         val latestState = latest.resultState as? SearchResultState.Success ?: return@launch
         if (
           latest.activeQuery != query ||
           latest.selectedOrderKey != orderToLoad ||
+          latest.selectedContentTypeKey != current.selectedContentTypeKey ||
           latestState.nextPage != pageToLoad
         ) {
           return@launch
@@ -184,6 +202,8 @@ internal class SearchViewModel(
 
   private fun loadFirstPage(query: String, orderKey: String) {
     val requestId = ++firstPageRequestId
+    val contentTypeKey = _viewState.value.selectedContentTypeKey
+    val contentType = _viewState.value.selectedContentType()
     firstPageJob?.cancel()
     nextPageJob?.cancel()
     firstPageJob = viewModelScope.launch {
@@ -192,6 +212,7 @@ internal class SearchViewModel(
           keyword = query,
           page = FirstPage,
           order = orderKey,
+          searchType = contentType,
         )
         if (videos.isEmpty()) {
           SearchResultState.Empty
@@ -214,7 +235,8 @@ internal class SearchViewModel(
       if (
         firstPageRequestId != requestId ||
         latest.activeQuery != query ||
-        latest.selectedOrderKey != orderKey
+        latest.selectedOrderKey != orderKey ||
+        latest.selectedContentTypeKey != contentTypeKey
       ) {
         return@launch
       }
@@ -244,6 +266,7 @@ internal data class SearchViewState(
   val activeQuery: String? = null,
   val suggestions: List<String> = emptyList(),
   val searchHistory: List<String> = emptyList(),
+  val selectedContentTypeKey: String = SearchContentTypeOptions.first().key,
   val selectedOrderKey: String = SearchSortOptions.first().key,
   val resultState: SearchResultState = SearchResultState.Loading,
 )
@@ -266,6 +289,17 @@ internal data class SearchSortOption(
   val titleRes: Int,
 )
 
+internal data class SearchContentTypeOption(
+  val key: String,
+  val titleRes: Int,
+  val contentType: SearchContentType,
+)
+
+internal val SearchContentTypeOptions = listOf(
+  SearchContentTypeOption("video", R.string.search_type_video, SearchContentType.Video),
+  SearchContentTypeOption("bangumi", R.string.search_type_bangumi, SearchContentType.Bangumi),
+)
+
 internal val SearchSortOptions = listOf(
   SearchSortOption("totalrank", R.string.search_sort_totalrank),
   SearchSortOption("click", R.string.search_sort_click),
@@ -277,8 +311,25 @@ private fun List<VideoSummary>.appendUniqueByBvid(nextVideos: List<VideoSummary>
   if (nextVideos.isEmpty()) {
     return this
   }
-  val knownBvids = mapTo(mutableSetOf()) { video -> video.bvid }
-  return this + nextVideos.filter { video -> knownBvids.add(video.bvid) }
+  val knownKeys = mapTo(mutableSetOf()) { video -> video.searchUniqueKey() }
+  return this + nextVideos.filter { video -> knownKeys.add(video.searchUniqueKey()) }
+}
+
+private fun VideoSummary.searchUniqueKey(): String {
+  return when {
+    bvid.isNotBlank() -> "bvid-$bvid"
+    pgcSeasonId > 0L -> "pgc-season-$pgcSeasonId"
+    pgcEpisodeId > 0L -> "pgc-episode-$pgcEpisodeId"
+    cid > 0L -> "cid-$cid"
+    else -> title
+  }
+}
+
+private fun SearchViewState.selectedContentType(): SearchContentType {
+  return SearchContentTypeOptions
+    .firstOrNull { option -> option.key == selectedContentTypeKey }
+    ?.contentType
+    ?: SearchContentType.Video
 }
 
 private const val SearchSuggestionDebounceMs = 250L

@@ -16,6 +16,8 @@ data class PlaybackRequest(
   val forceStartPosition: Boolean = false,
   val historyPage: Int = 0,
   val advanceToNextHistoryEpisode: Boolean = false,
+  val pgcSeasonId: Long = 0L,
+  val pgcEpisodeId: Long = 0L,
 ) : java.io.Serializable
 
 data class PlaybackInfo(
@@ -54,6 +56,9 @@ data class PlaybackEpisode(
   val page: Int,
   val title: String,
   val durationSeconds: Int,
+  val bvid: String = "",
+  val aid: Long = 0L,
+  val pgcEpisodeId: Long = 0L,
 )
 
 data class PlaybackTrack(

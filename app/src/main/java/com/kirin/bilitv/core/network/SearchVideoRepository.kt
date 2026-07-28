@@ -18,6 +18,7 @@ internal class SearchVideoRepository(
     keyword: String,
     page: Int,
     order: String,
+    searchType: SearchContentType = SearchContentType.Video,
   ): List<VideoSummary> {
     if (keyword.isBlank()) return emptyList()
 
@@ -25,7 +26,7 @@ internal class SearchVideoRepository(
     val keys = wbiKeyRepository.ensureKeys(sessData)
     val params = mutableMapOf(
       "keyword" to keyword,
-      "search_type" to "video",
+      "search_type" to searchType.apiType,
       "page" to page.toString(),
       "pagesize" to "20",
       "order" to order,
@@ -48,7 +49,7 @@ internal class SearchVideoRepository(
     }.getOrNull()
       ?: runCatching {
         val unsignedRoot = apiClient.getJson(
-          url = BiliApiEndpoints.Search,
+          url = BiliApiEndpoints.SearchLegacy,
           params = params,
         ).rootObject()
         unsignedRoot.requireBiliCodeOk("search fallback")
@@ -58,8 +59,20 @@ internal class SearchVideoRepository(
 
     return result
       .mapNotNull { it.asObjectOrNull() }
-      .filter { it.string("bvid").isNotBlank() }
-      .map(VideoSummaryMappers::fromSearch)
+      .mapNotNull { item ->
+        when (searchType) {
+          SearchContentType.Video -> item
+            .takeIf { it.string("bvid").isNotBlank() }
+            ?.let(VideoSummaryMappers::fromSearch)
+          SearchContentType.Bangumi -> item
+            .takeIf {
+              it.long("season_id") > 0L ||
+                it.long("pgc_season_id") > 0L ||
+                it.long("media_id") > 0L
+            }
+            ?.let(VideoSummaryMappers::fromPgcSearch)
+        }
+      }
   }
 
   suspend fun getSearchSuggestions(keyword: String): List<String> {
@@ -85,4 +98,9 @@ internal class SearchVideoRepository(
     return obj("data")?.get("result") as? JsonArray
   }
 
+}
+
+enum class SearchContentType(val apiType: String) {
+  Video("video"),
+  Bangumi("media_bangumi"),
 }

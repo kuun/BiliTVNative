@@ -57,7 +57,7 @@ internal class PlayerLoadStateHolder(
     val loadRequest = viewState.activeRequest
     viewState = viewState.copy(screenState = PlayerScreenState.Loading)
     return try {
-      val videoMetadata = fetchVideoMetadata(loadRequest)
+      val videoMetadata = reusableMetadataFor(loadRequest) ?: fetchVideoMetadataForInitialLoad(loadRequest)
       if (viewState.activeRequest != loadRequest) return null
       viewState = viewState.copy(metadata = videoMetadata)
 
@@ -74,8 +74,8 @@ internal class PlayerLoadStateHolder(
 
       val cid = effectiveRequest.cid.takeIf { it > 0L }
         ?: videoMetadata?.cid?.takeIf { it > 0L }
-        ?: playbackRepository.resolveCid(effectiveRequest.bvid)
-      if (cid <= 0L) {
+        ?: if (effectiveRequest.pgcEpisodeId > 0L) 0L else playbackRepository.resolveCid(effectiveRequest.bvid)
+      if (cid <= 0L && effectiveRequest.pgcEpisodeId <= 0L) {
         fail(missingCidMessage)
         return null
       }
@@ -192,6 +192,49 @@ internal class PlayerLoadStateHolder(
       null
     }
   }
+
+  private suspend fun fetchVideoMetadataForInitialLoad(request: PlaybackRequest): PlaybackVideoMetadata? {
+    if (request.pgcEpisodeId > 0L && !request.advanceToNextHistoryEpisode) {
+      Log.i(
+        PlayerControlLogTag,
+        "PlayerControl skipInitialPgcMetadata bvid=${request.bvid} cid=${request.cid} " +
+          "seasonId=${request.pgcSeasonId} epId=${request.pgcEpisodeId}",
+      )
+      return null
+    }
+    return fetchVideoMetadata(request)
+  }
+
+  private fun reusableMetadataFor(request: PlaybackRequest): PlaybackVideoMetadata? {
+    val metadata = viewState.metadata ?: return null
+    if (request.pgcSeasonId > 0L || request.pgcEpisodeId > 0L) {
+      val matchesCurrentEpisode = metadata.pages.any { episode ->
+        (request.pgcEpisodeId > 0L && episode.pgcEpisodeId == request.pgcEpisodeId) ||
+          (request.cid > 0L && episode.cid == request.cid) ||
+          (request.bvid.isNotBlank() && episode.bvid == request.bvid)
+      }
+      if (matchesCurrentEpisode || (request.pgcSeasonId > 0L && metadata.pages.isNotEmpty())) {
+        Log.i(
+          PlayerControlLogTag,
+          "PlayerControl reusePgcMetadata bvid=${request.bvid} cid=${request.cid} " +
+            "seasonId=${request.pgcSeasonId} epId=${request.pgcEpisodeId} pages=${metadata.pages.size}",
+        )
+        return metadata
+      }
+      return null
+    }
+
+    val matchesNormalVideo = metadata.bvid == request.bvid ||
+      metadata.pages.any { episode -> episode.bvid == request.bvid || episode.cid == request.cid }
+    if (matchesNormalVideo) {
+      Log.i(
+        PlayerControlLogTag,
+        "PlayerControl reuseVideoMetadata bvid=${request.bvid} cid=${request.cid} pages=${metadata.pages.size}",
+      )
+      return metadata
+    }
+    return null
+  }
 }
 
 private fun PlaybackRequest.withNextHistoryEpisodeIfNeeded(
@@ -199,20 +242,25 @@ private fun PlaybackRequest.withNextHistoryEpisodeIfNeeded(
 ): PlaybackRequest {
   if (!advanceToNextHistoryEpisode || metadata == null) return this
   val currentIndex = metadata.pages.indexOfFirst { episode ->
-    (historyPage > 0 && episode.page == historyPage) || (cid > 0L && episode.cid == cid)
+    (pgcEpisodeId > 0L && episode.pgcEpisodeId == pgcEpisodeId) ||
+      (historyPage > 0 && episode.page == historyPage) ||
+      (cid > 0L && episode.cid == cid)
   }
   val nextEpisode = metadata.pages.getOrNull(currentIndex + 1) ?: return this
   return copy(
+    bvid = bvid.ifBlank { nextEpisode.bvid },
     cid = nextEpisode.cid,
+    aid = aid.takeIf { it > 0L } ?: nextEpisode.aid,
     startPositionMs = 0L,
     forceStartPosition = true,
     historyPage = nextEpisode.page,
     advanceToNextHistoryEpisode = false,
+    pgcEpisodeId = nextEpisode.pgcEpisodeId.takeIf { it > 0L } ?: pgcEpisodeId,
   )
 }
 
 private fun PlaybackRequest.canUseLatestSavedProgress(): Boolean {
-  return bvid.isNotBlank() && preferredQualityId == null && !forceStartPosition
+  return bvid.isNotBlank() && pgcEpisodeId <= 0L && preferredQualityId == null && !forceStartPosition
 }
 
 private fun PlaybackVideoMetadata?.hasEpisodeCid(cid: Long): Boolean {
@@ -225,9 +273,14 @@ private fun PlaybackRequest.withResolvedMetadata(
   metadata: PlaybackVideoMetadata?,
   cid: Long,
 ): PlaybackRequest {
+  val selectedEpisode = metadata?.pages?.firstOrNull { episode ->
+    (pgcEpisodeId > 0L && episode.pgcEpisodeId == pgcEpisodeId) ||
+      (cid > 0L && episode.cid == cid)
+  } ?: metadata?.pages?.firstOrNull()
   return copy(
+    bvid = bvid.ifBlank { selectedEpisode?.bvid.orEmpty().ifBlank { metadata?.bvid.orEmpty() } },
     cid = cid,
-    aid = aid.takeIf { it > 0L } ?: metadata?.aid ?: 0L,
+    aid = aid.takeIf { it > 0L } ?: selectedEpisode?.aid ?: metadata?.aid ?: 0L,
     title = title.ifBlank { metadata?.title.orEmpty() },
     ownerName = ownerName.ifBlank { metadata?.ownerName.orEmpty() },
     ownerFace = ownerFace.ifBlank { metadata?.ownerFace.orEmpty() },
@@ -235,6 +288,7 @@ private fun PlaybackRequest.withResolvedMetadata(
     viewCount = viewCount.takeIf { it > 0 } ?: metadata?.viewCount ?: 0,
     danmakuCount = danmakuCount.takeIf { it > 0 } ?: metadata?.danmakuCount ?: 0,
     pubdate = pubdate.takeIf { it > 0L } ?: metadata?.pubdate ?: 0L,
+    pgcEpisodeId = pgcEpisodeId.takeIf { it > 0L } ?: selectedEpisode?.pgcEpisodeId ?: 0L,
   )
 }
 

@@ -333,6 +333,8 @@ fun BiliTvApp(
       forceStartPosition = forceStartPosition,
       historyPage = historyPage,
       advanceToNextHistoryEpisode = advanceToNextEpisode,
+      pgcSeasonId = pgcSeasonId,
+      pgcEpisodeId = pgcEpisodeId,
     )
   }
 

@@ -443,7 +443,14 @@ private fun SearchTouchResultsView(
   ) {
     SearchTouchResultsHeader(
       query = query,
+      selectedContentTypeKey = viewState.selectedContentTypeKey,
       selectedOrderKey = viewState.selectedOrderKey,
+      onContentTypeSelected = { contentTypeKey ->
+        if (contentTypeKey != viewState.selectedContentTypeKey) {
+          focusState.resetForSortChange()
+        }
+        viewModel.selectContentType(contentTypeKey)
+      },
       onOrderSelected = { orderKey ->
         if (orderKey != viewState.selectedOrderKey) {
           focusState.resetForSortChange()
@@ -495,7 +502,9 @@ private fun SearchTouchResultsView(
 @Composable
 private fun SearchTouchResultsHeader(
   query: String,
+  selectedContentTypeKey: String,
   selectedOrderKey: String,
+  onContentTypeSelected: (String) -> Unit,
   onOrderSelected: (String) -> Unit,
 ) {
   val homeColors = LocalHomeColors.current
@@ -516,9 +525,24 @@ private fun SearchTouchResultsHeader(
       horizontalArrangement = Arrangement.spacedBy(BiliSpacing.Md),
       contentPadding = PaddingValues(horizontal = BiliSpacing.Xs),
     ) {
+      items(SearchContentTypeOptions, key = { option -> option.key }) { option ->
+        SearchTouchSortButton(
+          titleRes = option.titleRes,
+          selected = selectedContentTypeKey == option.key,
+          onSelected = {
+            onContentTypeSelected(option.key)
+          },
+        )
+      }
+    }
+    LazyRow(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(BiliSpacing.Md),
+      contentPadding = PaddingValues(horizontal = BiliSpacing.Xs),
+    ) {
       items(SearchSortOptions, key = { option -> option.key }) { option ->
         SearchTouchSortButton(
-          option = option,
+          titleRes = option.titleRes,
           selected = selectedOrderKey == option.key,
           onSelected = {
             onOrderSelected(option.key)
@@ -531,7 +555,7 @@ private fun SearchTouchResultsHeader(
 
 @Composable
 private fun SearchTouchSortButton(
-  option: SearchSortOption,
+  titleRes: Int,
   selected: Boolean,
   onSelected: () -> Unit,
 ) {
@@ -558,7 +582,7 @@ private fun SearchTouchSortButton(
     contentAlignment = Alignment.Center,
   ) {
     Text(
-      text = stringResource(option.titleRes),
+      text = stringResource(titleRes),
       color = if (selected) BiliColors.TextPrimary else homeColors.textSecondary,
       fontSize = BiliTypography.HomeSectionTab,
       lineHeight = BiliTypography.HomeSectionTabLineHeight,
@@ -907,9 +931,13 @@ private fun SearchResultsView(
   onBackToKeyboard: () -> Unit,
   onVideoSelected: (VideoSummary) -> Unit,
 ) {
+  val contentTypeFocusRequesters = remember {
+    SearchContentTypeOptions.associate { option -> option.key to FocusRequester() }
+  }
   val sortFocusRequesters = remember {
     SearchSortOptions.associate { option -> option.key to FocusRequester() }
   }
+  val selectedContentTypeKey = viewState.selectedContentTypeKey
   val selectedOrderKey = viewState.selectedOrderKey
 
   Column(
@@ -926,10 +954,18 @@ private fun SearchResultsView(
   ) {
     SearchResultsHeader(
       query = query,
+      selectedContentTypeKey = selectedContentTypeKey,
       selectedOrderKey = selectedOrderKey,
+      contentTypeFocusRequesters = contentTypeFocusRequesters,
       sortFocusRequesters = sortFocusRequesters,
       firstResultFocusRequester = firstResultFocusRequester,
       onMoveLeftToNav = onMoveLeftToNav,
+      onContentTypeSelected = { contentTypeKey ->
+        if (contentTypeKey != viewState.selectedContentTypeKey) {
+          focusState.resetForSortChange()
+        }
+        viewModel.selectContentType(contentTypeKey)
+      },
       onOrderSelected = { orderKey ->
         if (orderKey != viewState.selectedOrderKey) {
           focusState.resetForSortChange()
@@ -983,10 +1019,13 @@ private fun SearchResultsView(
 @Composable
 private fun SearchResultsHeader(
   query: String,
+  selectedContentTypeKey: String,
   selectedOrderKey: String,
+  contentTypeFocusRequesters: Map<String, FocusRequester>,
   sortFocusRequesters: Map<String, FocusRequester>,
   firstResultFocusRequester: FocusRequester,
   onMoveLeftToNav: () -> Boolean,
+  onContentTypeSelected: (String) -> Unit,
   onOrderSelected: (String) -> Unit,
 ) {
   val homeColors = LocalHomeColors.current
@@ -1010,10 +1049,37 @@ private fun SearchResultsHeader(
       horizontalArrangement = Arrangement.spacedBy(BiliSpacing.Lg),
       contentPadding = PaddingValues(horizontal = BiliSpacing.Xs),
     ) {
+      itemsIndexed(SearchContentTypeOptions, key = { _, option -> option.key }) { index, option ->
+        val selected = selectedContentTypeKey == option.key
+        SearchSortButton(
+          titleRes = option.titleRes,
+          selected = selected,
+          modifier = Modifier.focusRequester(contentTypeFocusRequesters.getValue(option.key)),
+          onMoveLeftToNav = if (index == 0) onMoveLeftToNav else null,
+          onMoveDownToResults = {
+            runCatching {
+              sortFocusRequesters.getValue(selectedOrderKey).requestFocus()
+            }.isSuccess
+          },
+          onSelected = {
+            onContentTypeSelected(option.key)
+          },
+        )
+      }
+    }
+    LazyRow(
+      modifier = Modifier
+        .padding(horizontal = BiliSizing.SearchVideoGridHorizontalPadding)
+        .fillMaxWidth()
+        .height(BiliSizing.HomeSectionTabHeight + BiliSpacing.Xs)
+        .padding(BiliSpacing.Xs),
+      horizontalArrangement = Arrangement.spacedBy(BiliSpacing.Lg),
+      contentPadding = PaddingValues(horizontal = BiliSpacing.Xs),
+    ) {
       itemsIndexed(SearchSortOptions, key = { _, option -> option.key }) { index, option ->
         val selected = selectedOrderKey == option.key
         SearchSortButton(
-          option = option,
+          titleRes = option.titleRes,
           selected = selected,
           modifier = Modifier.focusRequester(sortFocusRequesters.getValue(option.key)),
           onMoveLeftToNav = if (index == 0) onMoveLeftToNav else null,
@@ -1033,7 +1099,7 @@ private fun SearchResultsHeader(
 
 @Composable
 private fun SearchSortButton(
-  option: SearchSortOption,
+  titleRes: Int,
   selected: Boolean,
   modifier: Modifier = Modifier,
   onMoveLeftToNav: (() -> Boolean)? = null,
@@ -1113,7 +1179,7 @@ private fun SearchSortButton(
     contentAlignment = Alignment.Center,
   ) {
     Text(
-      text = stringResource(option.titleRes),
+      text = stringResource(titleRes),
       color = textColor,
       fontSize = BiliTypography.HomeSectionTab,
       lineHeight = BiliTypography.HomeSectionTabLineHeight,
@@ -1193,6 +1259,8 @@ private fun List<VideoSummary>.resolveFocusIndex(focusKey: String, fallbackIndex
 private fun VideoSummary.focusRestoreKey(): String {
   return bvid.ifBlank {
     when {
+      pgcSeasonId > 0L -> "pgc-season-$pgcSeasonId"
+      pgcEpisodeId > 0L -> "pgc-episode-$pgcEpisodeId"
       cid > 0L -> "cid-$cid"
       historyPage > 0 -> "p-$historyPage"
       else -> ""

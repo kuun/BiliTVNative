@@ -1,5 +1,6 @@
 package com.kirin.bilitv.ui.player
 
+import android.util.Log
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.Canvas
@@ -138,6 +139,7 @@ internal fun BoxScope.PlayerTvChrome(
   showClock: Boolean,
   clockText: String,
   showMiniProgressBar: Boolean,
+  onControlSelected: (PlayerControl) -> Unit,
 ) {
   if (controlsVisible) {
     PlayerTopOverlay(
@@ -160,6 +162,7 @@ internal fun BoxScope.PlayerTvChrome(
       danmakuSettings = danmakuSettings,
       onlineCountText = onlineCountText,
       currentCodecText = currentCodecText,
+      onControlSelected = onControlSelected,
       modifier = Modifier.align(Alignment.BottomCenter),
     )
   } else {
@@ -536,7 +539,10 @@ private fun PlayerTouchBottomOverlay(
             iconRes = action.iconRes,
             contentDescription = stringResource(action.labelRes),
             active = action.isActive(activePanel),
-            onClick = { onPanelSelected(action.panel) },
+            onClick = {
+              Log.i(PlayerControlLogTag, "PlayerControl touchOverlayButtonClick action=$action panel=${action.panel}")
+              onPanelSelected(action.panel)
+            },
           )
         }
       }
@@ -873,6 +879,7 @@ private fun PlayerBottomOverlay(
   danmakuSettings: DanmakuSettings,
   onlineCountText: String,
   currentCodecText: String,
+  onControlSelected: (PlayerControl) -> Unit,
   modifier: Modifier = Modifier,
 ) {
   Column(
@@ -921,6 +928,10 @@ private fun PlayerBottomOverlay(
           iconRes = control.iconRes,
           contentDescription = stringResource(control.labelRes),
           focused = !progressFocused && focusedControl == control,
+          onClick = {
+            Log.i(PlayerControlLogTag, "PlayerControl tvOverlayButtonClick control=$control")
+            onControlSelected(control)
+          },
         )
         if (index != PlayerControl.entries.lastIndex) {
           Spacer(modifier = Modifier.width(BiliSpacing.Xl))
@@ -943,8 +954,10 @@ private fun PlayerIconButton(
   @DrawableRes iconRes: Int,
   contentDescription: String,
   focused: Boolean,
+  onClick: () -> Unit,
 ) {
   val shape = RoundedCornerShape(BiliRadius.Card)
+  val interactionSource = remember { MutableInteractionSource() }
   Box(
     modifier = Modifier
       .size(BiliSizing.PlayerControlIconButtonSize)
@@ -953,6 +966,11 @@ private fun PlayerIconButton(
         shape = shape,
         focused = focused,
         surfaceColor = if (focused) BiliColors.PlayerControlFocused else BiliColors.PlayerControlIdle,
+      )
+      .clickable(
+        interactionSource = interactionSource,
+        indication = null,
+        onClick = onClick,
       ),
     contentAlignment = Alignment.Center,
   ) {

@@ -152,7 +152,7 @@ object BiliSizing {
   val SettingsRowHeight = 96.dp
   val SettingsChipHeight = 44.dp
   val SettingsCodecValueWidth = 112.dp
-  val SettingsHomeSectionGridHeight = 156.dp
+  val SettingsHomeSectionGridHeight = 208.dp
   const val SettingsHomeSectionColumns = 4
   val HomeSectionTabHeight = 40.dp
   val HomeSectionCapsuleHeight = 58.dp

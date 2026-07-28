@@ -273,8 +273,18 @@ private fun List<VideoSummary>.appendUniqueByBvid(nextVideos: List<VideoSummary>
   if (nextVideos.isEmpty()) {
     return this
   }
-  val knownBvids = mapTo(mutableSetOf()) { video -> video.bvid }
-  return this + nextVideos.filter { video -> knownBvids.add(video.bvid) }
+  val knownKeys = mapTo(mutableSetOf()) { video -> video.homeVideoKey() }
+  return this + nextVideos.filter { video -> knownKeys.add(video.homeVideoKey()) }
+}
+
+internal fun VideoSummary.homeVideoKey(): String {
+  return when {
+    bvid.isNotBlank() -> "bvid-$bvid"
+    pgcSeasonId > 0L -> "pgc-season-$pgcSeasonId"
+    pgcEpisodeId > 0L -> "pgc-episode-$pgcEpisodeId"
+    cid > 0L -> "cid-$cid"
+    else -> title
+  }
 }
 
 private const val FirstPage = 1

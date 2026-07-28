@@ -404,6 +404,7 @@ private fun RecommendGrid(
         selectedSectionFocusRequester.requestFocus()
       }.isSuccess
     },
+    keyFactory = { _, video -> video.homeVideoKey() },
     topPadding = BiliSizing.HomeVideoGridTopPadding + BiliSizing.HomeVideoGridTopBleed,
     topBleed = BiliSizing.HomeVideoGridTopBleed,
     onVideoSelected = onVideoSelected,
@@ -435,11 +436,12 @@ private fun List<VideoSummary>.resolveFocusIndex(focusKey: String, fallbackIndex
 }
 
 private fun VideoSummary.focusRestoreKey(): String {
-  return bvid.ifBlank {
-    when {
-      cid > 0L -> "cid-$cid"
-      historyPage > 0 -> "p-$historyPage"
-      else -> ""
-    }
+  return when {
+    bvid.isNotBlank() -> "bvid-$bvid"
+    pgcSeasonId > 0L -> "pgc-season-$pgcSeasonId"
+    pgcEpisodeId > 0L -> "pgc-episode-$pgcEpisodeId"
+    cid > 0L -> "cid-$cid"
+    historyPage > 0 -> "p-$historyPage"
+    else -> ""
   }
 }

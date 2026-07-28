@@ -137,6 +137,30 @@ internal object VideoSummaryMappers {
     )
   }
 
+  fun fromPgcSeasonIndex(json: JsonObject): VideoSummary {
+    val firstEp = json.obj("first_ep")
+    return VideoSummary(
+      bvid = "",
+      title = stripHtmlTags(json.string("title")),
+      pic = fixPicUrl(json.string("cover")),
+      ownerName = json.string("season_type_name"),
+      ownerFace = fixPicUrl(json.string("cover")),
+      ownerMid = 0L,
+      view = 0L,
+      danmaku = 0,
+      duration = 0,
+      pubdate = 0L,
+      badge = filterBadge(
+        json.string("index_show")
+          .ifBlank { json.string("badge") },
+      ),
+      pgcSeasonId = json.long("season_id"),
+      pgcEpisodeId = firstEp?.long("ep_id") ?: firstEp?.long("id") ?: 0L,
+      pgcTypeName = json.string("season_type_name"),
+      pgcIndexShow = json.string("index_show"),
+    )
+  }
+
   fun fromSpace(json: JsonObject): VideoSummary {
     return VideoSummary(
       bvid = json.string("bvid"),

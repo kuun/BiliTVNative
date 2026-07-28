@@ -22,6 +22,7 @@ object BiliApiEndpoints {
   const val SearchLegacy = "$ApiBase/x/web-interface/search/type"
   const val SearchSuggest = "https://s.search.bilibili.com/main/suggest"
   const val PlayUrl = "$ApiBase/x/player/wbi/playurl"
+  const val PgcSeasonIndex = "$ApiBase/pgc/season/index/result"
   const val PgcSeason = "$ApiBase/pgc/view/web/season"
   const val PgcPlayUrl = "$ApiBase/pgc/player/web/playurl"
   const val PlayerVideoshot = "$ApiBase/x/player/videoshot"

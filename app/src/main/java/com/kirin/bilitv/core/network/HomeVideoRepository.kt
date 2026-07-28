@@ -22,10 +22,20 @@ internal class HomeVideoRepository(
     return when (section) {
       HomeSection.Recommend -> getRecommendVideos(idx)
       HomeSection.Popular -> getPopularVideos(page)
-      else -> getRegionVideos(
-        tid = section.regionTid ?: return emptyList(),
-        page = page,
-      )
+      else -> {
+        val seasonType = section.pgcSeasonType
+        if (seasonType != null) {
+          getPgcSeasonIndexVideos(
+            seasonType = seasonType,
+            page = page,
+          )
+        } else {
+          getRegionVideos(
+            tid = section.regionTid ?: return emptyList(),
+            page = page,
+          )
+        }
+      }
     }
   }
 
@@ -110,5 +120,25 @@ internal class HomeVideoRepository(
       .mapNotNull { it.asObjectOrNull() }
       .filter { it.string("bvid").isNotBlank() }
       .map(VideoSummaryMappers::fromArchive)
+  }
+
+  private suspend fun getPgcSeasonIndexVideos(seasonType: Int, page: Int): List<VideoSummary> {
+    val root = apiClient.getJson(
+      url = BiliApiEndpoints.PgcSeasonIndex,
+      params = mapOf(
+        "season_type" to seasonType.toString(),
+        "page" to page.toString(),
+        "pagesize" to "20",
+        "type" to "1",
+        "sort" to "0",
+      ),
+    ).rootObject()
+    root.requireBiliCodeOk("pgc season index")
+
+    val list = root.obj("data")?.get("list") as? JsonArray ?: return emptyList()
+    return list
+      .mapNotNull { it.asObjectOrNull() }
+      .filter { it.long("season_id") > 0L }
+      .map(VideoSummaryMappers::fromPgcSeasonIndex)
   }
 }

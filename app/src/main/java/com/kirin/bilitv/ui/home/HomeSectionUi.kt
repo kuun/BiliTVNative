@@ -11,6 +11,9 @@ fun HomeSection.titleRes(): Int {
     HomeSection.Popular -> R.string.home_section_popular
     HomeSection.Anime -> R.string.home_section_anime
     HomeSection.Movie -> R.string.home_section_movie
+    HomeSection.Tv -> R.string.home_section_tv
+    HomeSection.Film -> R.string.home_section_film
+    HomeSection.Documentary -> R.string.home_section_documentary
     HomeSection.Game -> R.string.home_section_game
     HomeSection.Knowledge -> R.string.home_section_knowledge
     HomeSection.Tech -> R.string.home_section_tech

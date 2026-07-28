@@ -3,10 +3,14 @@ package com.kirin.bilitv.core.model
 enum class HomeSection(
   val key: String,
   val regionTid: Int?,
+  val pgcSeasonType: Int? = null,
 ) {
   Recommend("recommend", null),
   Popular("popular", null),
-  Anime("anime", 13),
+  Anime("anime", null, 1),
+  Tv("tv", null, 5),
+  Film("film", null, 2),
+  Documentary("documentary", null, 3),
   Movie("movie", 181),
   Game("game", 4),
   Knowledge("knowledge", 36),

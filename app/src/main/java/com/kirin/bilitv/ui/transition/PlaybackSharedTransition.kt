@@ -72,11 +72,12 @@ fun Modifier.playbackSharedBounds(
 }
 
 fun VideoSummary.playbackSharedTransitionKey(): String {
-  return bvid.ifBlank {
-    when {
-      cid > 0L -> "cid-$cid"
-      pic.isNotBlank() -> "pic-${pic.hashCode()}"
-      else -> title
-    }
+  return when {
+    bvid.isNotBlank() -> "bvid-$bvid"
+    pgcSeasonId > 0L -> "pgc-season-$pgcSeasonId"
+    pgcEpisodeId > 0L -> "pgc-episode-$pgcEpisodeId"
+    cid > 0L -> "cid-$cid"
+    pic.isNotBlank() -> "pic-${pic.hashCode()}"
+    else -> title
   }
 }

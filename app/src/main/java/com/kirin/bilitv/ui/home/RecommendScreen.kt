@@ -338,6 +338,8 @@ private fun HomeSectionTab(
       .onPreviewKeyEvent { event ->
         when {
           event.type == KeyEventType.KeyDown &&
+            event.key == Key.DirectionUp -> true
+          event.type == KeyEventType.KeyDown &&
             event.key == Key.DirectionLeft &&
             onMoveLeftToNav != null -> onMoveLeftToNav()
           event.type == KeyEventType.KeyUp && event.key.isConfirmKey() -> {

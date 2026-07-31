@@ -216,10 +216,13 @@ private fun AccountNavItem(
       .fillMaxWidth()
       .height(BiliSizing.NavItemHeight)
       .onPreviewKeyEvent { event ->
-        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
-          onMoveRight()
-        } else {
-          false
+        if (event.type != KeyEventType.KeyDown) {
+          return@onPreviewKeyEvent false
+        }
+        when (event.key) {
+          Key.DirectionLeft -> true
+          Key.DirectionRight -> onMoveRight()
+          else -> false
         }
       },
     onClick = onClick,
@@ -377,10 +380,13 @@ private fun AppNavItem(
       .fillMaxWidth()
       .height(BiliSizing.NavItemHeight)
       .onPreviewKeyEvent { event ->
-        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
-          onMoveRight()
-        } else {
-          false
+        if (event.type != KeyEventType.KeyDown) {
+          return@onPreviewKeyEvent false
+        }
+        when (event.key) {
+          Key.DirectionLeft -> true
+          Key.DirectionRight -> onMoveRight()
+          else -> false
         }
       },
     onFocusChanged = { focused = it },

@@ -1074,7 +1074,7 @@ private fun SearchResultsHeader(
               sortFocusRequesters.getValue(selectedOrderKey).requestFocus()
             }.isSuccess
           },
-          onMoveUp = null,
+          onMoveUp = { true },
           onSelected = {
             onContentTypeSelected(option.key)
           },

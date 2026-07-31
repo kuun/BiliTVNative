@@ -963,7 +963,6 @@ private fun PlayerBottomOverlay(
       PlayerStatusTexts(
         request = request,
         info = info,
-        danmakuSettings = danmakuSettings,
         onlineCountText = onlineCountText,
         currentCodecText = currentCodecText,
       )
@@ -1105,7 +1104,6 @@ private fun PlayerDanmakuButton(
 private fun PlayerStatusTexts(
   request: PlaybackRequest,
   info: PlaybackInfo,
-  danmakuSettings: DanmakuSettings,
   onlineCountText: String,
   currentCodecText: String,
 ) {
@@ -1122,7 +1120,6 @@ private fun PlayerStatusTexts(
       )
     }
     val danmakuText = when {
-      !danmakuSettings.enabled -> stringResource(R.string.player_danmaku_off)
       request.danmakuCount > 0 -> stringResource(
         R.string.player_danmaku_count_status,
         request.danmakuCount.formatCompactCountText(),
@@ -1131,7 +1128,7 @@ private fun PlayerStatusTexts(
     }
     Text(
       text = danmakuText,
-      color = if (danmakuSettings.enabled) BiliColors.TextSecondary else BiliColors.TextTertiary,
+      color = BiliColors.TextSecondary,
       fontSize = BiliTypography.PlayerStatus,
       maxLines = 1,
     )

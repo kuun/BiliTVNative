@@ -181,6 +181,7 @@
     <string name="player_control_related">&#x76F8;&#x5173;</string>
     <string name="player_control_comments">&#x8BC4;&#x8BBA;</string>
     <string name="player_control_settings">&#x8BBE;&#x7F6E;</string>
+    <string name="player_control_danmaku_glyph">&#x5F39;</string>
     <string name="player_control_back">&#x8FD4;&#x56DE;</string>
     <string name="player_control_play_pause">&#x64AD;&#x653E;&#x002F;&#x6682;&#x505C;</string>
     <string name="player_control_like">&#x70B9;&#x8D5E;</string>

@@ -289,7 +289,7 @@ object BiliMotion {
   const val OverlayMs = 160
   const val FocusSpringDampingRatio = 0.86f
   const val FocusSpringStiffness = 560f
-  const val PlayerControlsAutoHideMs = 4_000L
+  const val PlayerControlsAutoHideMs = 6_000L
   const val PlayerProgressUpdateMs = 500L
   const val PlayerSeekPreviewAutoCommitMs = 1_200L
   const val PlayerClockUpdateMs = 30_000L

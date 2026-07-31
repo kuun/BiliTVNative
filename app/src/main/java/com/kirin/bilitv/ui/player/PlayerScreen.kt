@@ -210,9 +210,11 @@ fun PlayerScreen(
   var skippedAirJumpIds by remember { mutableStateOf(emptySet<String>()) }
   var lastAirJumpPositionMs by remember { mutableLongStateOf(0L) }
   var controlsVisible by remember { mutableStateOf(false) }
+  var controlsInteractionToken by remember { mutableLongStateOf(0L) }
   val overlayFocusStateHolder = remember { PlayerOverlayFocusStateHolder() }
   var progressFocused by overlayFocusStateHolder.progressFocusedState
   var focusedControl by overlayFocusStateHolder.focusedControlState
+  var controlFocusVisible by overlayFocusStateHolder.controlFocusVisibleState
   var activePanel by remember { mutableStateOf(PlayerPanel.None) }
   var focusedPanelIndex by overlayFocusStateHolder.focusedPanelIndexState
   val storedDanmakuSettings by danmakuSettingsStore.settings.collectAsState(initial = DanmakuSettings())
@@ -334,10 +336,15 @@ fun PlayerScreen(
     }
   }
 
-	  fun showControls() {
+	  fun showControls(focusPrimaryControl: Boolean = true) {
 	    if (!controlsVisible && activePanel == PlayerPanel.None) {
-	      overlayFocusStateHolder.resetPrimaryControlFocus()
+	      if (focusPrimaryControl) {
+	        overlayFocusStateHolder.resetPrimaryControlFocus()
+	      } else {
+	        overlayFocusStateHolder.hidePrimaryControlFocus()
+	      }
 	    }
+	    controlsInteractionToken += 1L
 	    controlsVisible = true
 	    runCatching { controlsFocusRequester.requestFocus() }
 	  }
@@ -788,7 +795,7 @@ fun PlayerScreen(
     if (player.isPlaying) {
       player.pause()
       playbackPaused = true
-      showControls()
+      showControls(focusPrimaryControl = false)
       saveAndReportProgress()
     } else {
       player.play()
@@ -1084,6 +1091,14 @@ fun PlayerScreen(
           videoRepository.getRelatedVideos(displayRequest.bvid)
         }
       }
+      PlayerControl.Danmaku -> {
+        persistDanmakuSettings(danmakuSettings.copy(enabled = !danmakuSettings.enabled))
+        if (playbackPaused) {
+          showControls()
+        } else {
+          hideControlsForPlayback()
+        }
+      }
     }
   }
 
@@ -1125,6 +1140,7 @@ fun PlayerScreen(
     when {
       previewPositionMs != null -> commitPreviewSeek()
       activePanel != PlayerPanel.None -> activateFocusedPanelItem()
+      controlsVisible && controlFocusVisible && !progressFocused -> activateFocusedControl()
       playbackPaused && !completionReported -> togglePlayback()
       controlsVisible -> activateFocusedControl()
       else -> showControls()
@@ -1170,7 +1186,7 @@ fun PlayerScreen(
         val pausedByUser = !isPlaying && !player.playWhenReady && player.playbackState != Player.STATE_ENDED
         playbackPaused = pausedByUser
         when {
-          pausedByUser -> showControls()
+          pausedByUser -> showControls(focusPrimaryControl = false)
           isPlaying -> hideControlsForPlayback()
         }
       }
@@ -1418,7 +1434,7 @@ fun PlayerScreen(
     }
   }
 
-  LaunchedEffect(controlsVisible, playerState, activePanel, previewPositionMs, playbackPaused, touchSeekActive) {
+  LaunchedEffect(controlsVisible, controlsInteractionToken, playerState, activePanel, previewPositionMs, playbackPaused, touchSeekActive) {
     if (controlsVisible && playerState is PlayerScreenState.Ready) {
       runCatching { controlsFocusRequester.requestFocus() }
       if (!playbackPaused && !touchSeekActive) {
@@ -1554,7 +1570,10 @@ fun PlayerScreen(
           Key.DirectionUp -> {
             when {
               activePanel != PlayerPanel.None -> changePanelFocus(-1)
-	              controlsVisible && !progressFocused -> overlayFocusStateHolder.focusProgress()
+	              controlsVisible && !progressFocused -> {
+                overlayFocusStateHolder.focusProgress()
+                showControls()
+              }
               else -> Unit
             }
             true
@@ -1562,7 +1581,14 @@ fun PlayerScreen(
           Key.DirectionDown -> {
             when {
               activePanel != PlayerPanel.None -> changePanelFocus(1)
-	              playbackPaused && controlsVisible && progressFocused -> overlayFocusStateHolder.clearProgressFocus()
+	              controlsVisible && progressFocused -> {
+                overlayFocusStateHolder.clearProgressFocus()
+                showControls()
+              }
+              playbackPaused && controlsVisible && !controlFocusVisible -> {
+                overlayFocusStateHolder.resetPrimaryControlFocus()
+                showControls()
+              }
               else -> toggleControlsFromRemoteMenu()
             }
             true
@@ -1710,6 +1736,7 @@ fun PlayerScreen(
             currentCodecText = currentCodecText,
             controlsVisible = controlsVisible,
             focusedControl = focusedControl,
+            controlFocusVisible = controlFocusVisible,
             progressFocused = progressFocused,
             danmakuSettings = danmakuSettings,
             positionState = playbackPositionState,

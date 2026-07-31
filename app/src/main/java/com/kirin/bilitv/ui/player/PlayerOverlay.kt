@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -57,6 +58,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -96,6 +99,7 @@ import kotlin.math.roundToInt
 
 internal enum class PlayerControl {
   Episodes,
+  Danmaku,
   Up,
   Related,
   Settings,
@@ -129,6 +133,7 @@ internal fun BoxScope.PlayerTvChrome(
   currentCodecText: String,
   controlsVisible: Boolean,
   focusedControl: PlayerControl,
+  controlFocusVisible: Boolean,
   progressFocused: Boolean,
   danmakuSettings: DanmakuSettings,
   positionState: State<Long>,
@@ -153,6 +158,7 @@ internal fun BoxScope.PlayerTvChrome(
       request = request,
       info = info,
       focusedControl = focusedControl,
+      controlFocusVisible = controlFocusVisible,
       progressFocused = progressFocused,
       positionState = positionState,
       durationState = durationState,
@@ -870,6 +876,7 @@ private fun PlayerBottomOverlay(
   request: PlaybackRequest,
   info: PlaybackInfo,
   focusedControl: PlayerControl,
+  controlFocusVisible: Boolean,
   progressFocused: Boolean,
   positionState: State<Long>,
   durationState: State<Long>,
@@ -924,15 +931,30 @@ private fun PlayerBottomOverlay(
       verticalAlignment = Alignment.CenterVertically,
     ) {
       PlayerControl.entries.forEachIndexed { index, control ->
-        PlayerIconButton(
-          iconRes = control.iconRes,
-          contentDescription = stringResource(control.labelRes),
-          focused = !progressFocused && focusedControl == control,
-          onClick = {
-            Log.i(PlayerControlLogTag, "PlayerControl tvOverlayButtonClick control=$control")
-            onControlSelected(control)
-          },
-        )
+        val focused = controlFocusVisible && !progressFocused && focusedControl == control
+        val onClick = {
+          Log.i(PlayerControlLogTag, "PlayerControl tvOverlayButtonClick control=$control")
+          onControlSelected(control)
+        }
+        if (control == PlayerControl.Danmaku) {
+          PlayerDanmakuButton(
+            enabled = danmakuSettings.enabled,
+            contentDescription = if (danmakuSettings.enabled) {
+              stringResource(R.string.player_danmaku_on)
+            } else {
+              stringResource(R.string.player_danmaku_off)
+            },
+            focused = focused,
+            onClick = onClick,
+          )
+        } else {
+          PlayerIconButton(
+            iconRes = control.iconRes(),
+            contentDescription = stringResource(control.labelRes),
+            focused = focused,
+            onClick = onClick,
+          )
+        }
         if (index != PlayerControl.entries.lastIndex) {
           Spacer(modifier = Modifier.width(BiliSpacing.Xl))
         }
@@ -962,6 +984,7 @@ private fun PlayerIconButton(
     modifier = Modifier
       .size(BiliSizing.PlayerControlIconButtonSize)
       .clip(shape)
+      .semantics { this.contentDescription = contentDescription }
       .playerLiquidGlassSurface(
         shape = shape,
         focused = focused,
@@ -1021,6 +1044,60 @@ private fun Modifier.playerFocusedLiquidGlassSurface(
       )
   } else {
     background(BiliColors.Transparent)
+  }
+}
+
+@Composable
+private fun PlayerDanmakuButton(
+  enabled: Boolean,
+  contentDescription: String,
+  focused: Boolean,
+  onClick: () -> Unit,
+) {
+  val shape = RoundedCornerShape(BiliRadius.Card)
+  val interactionSource = remember { MutableInteractionSource() }
+  val slashWidth = with(LocalDensity.current) { BiliFocus.BorderWidth.toPx() }
+  Box(
+    modifier = Modifier
+      .size(BiliSizing.PlayerControlIconButtonSize)
+      .clip(shape)
+      .semantics { this.contentDescription = contentDescription }
+      .playerLiquidGlassSurface(
+        shape = shape,
+        focused = focused,
+        surfaceColor = if (focused) BiliColors.PlayerControlFocused else BiliColors.PlayerControlIdle,
+      )
+      .clickable(
+        interactionSource = interactionSource,
+        indication = null,
+        onClick = onClick,
+      ),
+    contentAlignment = Alignment.Center,
+  ) {
+    Canvas(modifier = Modifier.size(BiliSizing.PlayerControlIconSize)) {
+      val strokeWidth = slashWidth
+      val radius = (size.minDimension - strokeWidth) / 2f
+      drawCircle(
+        color = BiliColors.TextPrimary,
+        radius = radius,
+        style = Stroke(width = strokeWidth),
+      )
+      if (!enabled) {
+        val inset = strokeWidth * 2f
+        drawLine(
+          color = BiliColors.TextPrimary,
+          start = Offset(size.width - inset, inset),
+          end = Offset(inset, size.height - inset),
+          strokeWidth = strokeWidth,
+        )
+      }
+    }
+    Text(
+      text = stringResource(R.string.player_control_danmaku_glyph),
+      color = BiliColors.TextPrimary,
+      fontSize = BiliTypography.PlayerTime,
+      fontWeight = FontWeight.Bold,
+    )
   }
 }
 
@@ -2596,18 +2673,22 @@ private fun progressFraction(positionMs: Long, durationMs: Long): Float {
   }
 }
 
-private val PlayerControl.iconRes: Int
-  @DrawableRes
-  get() = when (this) {
+@DrawableRes
+private fun PlayerControl.iconRes(): Int {
+  return when (this) {
     PlayerControl.Episodes -> R.drawable.ic_player_playlist
     PlayerControl.Up -> R.drawable.ic_nav_account
     PlayerControl.Related -> R.drawable.ic_player_related
     PlayerControl.Settings -> R.drawable.ic_nav_settings
+    PlayerControl.Danmaku -> error("Danmaku control uses a custom glyph button")
   }
+}
 
 private val PlayerControl.labelRes: Int
+  @StringRes
   get() = when (this) {
     PlayerControl.Episodes -> R.string.player_control_episodes
+    PlayerControl.Danmaku -> R.string.player_danmaku_on
     PlayerControl.Up -> R.string.player_control_up
     PlayerControl.Related -> R.string.player_control_related
     PlayerControl.Settings -> R.string.player_control_settings

@@ -180,6 +180,7 @@
     <string name="player_control_up">UP 主</string>
     <string name="player_control_related">相關</string>
     <string name="player_control_settings">設定</string>
+    <string name="player_control_danmaku_glyph">彈</string>
     <string name="player_control_like">讚好</string>
     <string name="player_online_status">在看：%1$s</string>
     <string name="player_panel_episodes">選集</string>

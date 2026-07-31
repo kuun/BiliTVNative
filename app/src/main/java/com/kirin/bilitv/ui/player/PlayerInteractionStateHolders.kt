@@ -9,19 +9,28 @@ internal const val PlayerControlLogTag = "BiliTVNative:PlayerControl"
 internal class PlayerOverlayFocusStateHolder {
   val progressFocusedState = mutableStateOf(false)
   val focusedControlState = mutableStateOf(PlayerControl.Episodes)
+  val controlFocusVisibleState = mutableStateOf(true)
   val focusedPanelIndexState = mutableIntStateOf(0)
 
   fun resetPrimaryControlFocus() {
     focusedControlState.value = PlayerControl.Episodes
     progressFocusedState.value = false
+    controlFocusVisibleState.value = true
+  }
+
+  fun hidePrimaryControlFocus() {
+    progressFocusedState.value = false
+    controlFocusVisibleState.value = false
   }
 
   fun clearProgressFocus() {
     progressFocusedState.value = false
+    controlFocusVisibleState.value = true
   }
 
   fun focusProgress() {
     progressFocusedState.value = true
+    controlFocusVisibleState.value = true
   }
 
   fun moveFocusedControl(delta: Int) {

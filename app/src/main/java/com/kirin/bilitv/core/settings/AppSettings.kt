@@ -37,6 +37,7 @@ data class AppSettings(
   val playbackQualityPreference: PlaybackQualityPreference = PlaybackQualityPreference.Highest,
   val playbackCodecPreference: PlaybackCodecPreference = PlaybackCodecPreference.Auto,
   val seekPreviewSpritesEnabled: Boolean = true,
+  val danmakuUpShortcutEnabled: Boolean = true,
   val airJumpAssistantEnabled: Boolean = true,
   val confirmPlaybackExit: Boolean = true,
   val autoPlayNextEpisode: Boolean = false,

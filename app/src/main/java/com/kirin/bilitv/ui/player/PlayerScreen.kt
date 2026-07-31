@@ -151,6 +151,7 @@ fun PlayerScreen(
   autoReturnHomeOnCompletion: Boolean,
   showClock: Boolean,
   showMiniProgressBar: Boolean,
+  danmakuUpShortcutEnabled: Boolean,
   captureExitFrame: Boolean = false,
   onExitFrameReady: (ImageBitmap?) -> Unit = {},
   onPlaybackRequestChanged: (PlaybackRequest) -> Unit = {},
@@ -354,6 +355,20 @@ fun PlayerScreen(
     coroutineScope.launch {
       danmakuSettingsStore.setSettings(next)
     }
+  }
+
+  fun toggleDanmakuFromUpShortcut() {
+    val nextEnabled = !danmakuSettings.enabled
+    persistDanmakuSettings(danmakuSettings.copy(enabled = nextEnabled))
+    Toast.makeText(
+      context,
+      if (nextEnabled) {
+        context.getString(R.string.player_danmaku_enabled_toast)
+      } else {
+        context.getString(R.string.player_danmaku_disabled_toast)
+      },
+      Toast.LENGTH_SHORT,
+    ).show()
   }
 
   fun hideControlsForPlayback() {
@@ -1573,6 +1588,10 @@ fun PlayerScreen(
 	              controlsVisible && !progressFocused -> {
                 overlayFocusStateHolder.focusProgress()
                 showControls()
+              }
+              controlsVisible && progressFocused -> showControls()
+              !controlsVisible && !progressFocused && previewPositionMs == null && danmakuUpShortcutEnabled -> {
+                toggleDanmakuFromUpShortcut()
               }
               else -> Unit
             }

@@ -57,6 +57,7 @@ fun SettingsScreen(
   onChineseTextVariantChange: (ChineseTextVariant) -> Unit,
   onClearCache: () -> Unit,
   onSeekPreviewSpritesEnabledChange: (Boolean) -> Unit,
+  onDanmakuUpShortcutEnabledChange: (Boolean) -> Unit,
   onPlaybackQualityPreferenceChange: (PlaybackQualityPreference) -> Unit,
   onPlaybackCodecPreferenceChange: (PlaybackCodecPreference) -> Unit,
   onAirJumpAssistantEnabledChange: (Boolean) -> Unit,
@@ -86,6 +87,7 @@ fun SettingsScreen(
       SettingsItemClearCache to FocusRequester(),
       SettingsItemPlaybackCodec to FocusRequester(),
       SettingsItemSeekPreviewSprites to FocusRequester(),
+      SettingsItemDanmakuUpShortcut to FocusRequester(),
       SettingsItemAirJumpAssistant to FocusRequester(),
       SettingsItemConfirmPlaybackExit to FocusRequester(),
       SettingsItemAutoPlayNextEpisode to FocusRequester(),
@@ -171,6 +173,7 @@ fun SettingsScreen(
         onPlaybackQualityPreferenceChange = onPlaybackQualityPreferenceChange,
         onPlaybackCodecPreferenceChange = onPlaybackCodecPreferenceChange,
         onAirJumpAssistantEnabledChange = onAirJumpAssistantEnabledChange,
+        onDanmakuUpShortcutEnabledChange = onDanmakuUpShortcutEnabledChange,
         onConfirmPlaybackExitChange = onConfirmPlaybackExitChange,
         onAutoPlayNextEpisodeChange = onAutoPlayNextEpisodeChange,
         onAutoPlayRelatedVideoChange = onAutoPlayRelatedVideoChange,
@@ -220,6 +223,7 @@ private fun SettingsBehaviorColumn(
   onPlaybackQualityPreferenceChange: (PlaybackQualityPreference) -> Unit,
   onPlaybackCodecPreferenceChange: (PlaybackCodecPreference) -> Unit,
   onAirJumpAssistantEnabledChange: (Boolean) -> Unit,
+  onDanmakuUpShortcutEnabledChange: (Boolean) -> Unit,
   onConfirmPlaybackExitChange: (Boolean) -> Unit,
   onAutoPlayNextEpisodeChange: (Boolean) -> Unit,
   onAutoPlayRelatedVideoChange: (Boolean) -> Unit,
@@ -320,6 +324,22 @@ private fun SettingsBehaviorColumn(
           ),
         onFocused = { onSettingFocused(SettingsItemAirJumpAssistant) },
         onCheckedChange = onAirJumpAssistantEnabledChange,
+      )
+    }
+    item(key = "danmaku-up-shortcut") {
+      SettingsToggleRow(
+        title = stringResource(R.string.settings_danmaku_up_shortcut_title),
+        description = stringResource(R.string.settings_danmaku_up_shortcut_description),
+        checked = settings.danmakuUpShortcutEnabled,
+        modifier = Modifier
+          .focusRequester(focusRequesters.getValue(SettingsItemDanmakuUpShortcut))
+          .settingsBoundaryKeys(
+            itemIndex = SettingsItemDanmakuUpShortcut,
+            onMoveSettingFocus = onMoveSettingFocus,
+            onMoveLeftToNav = onMoveLeftToNav,
+          ),
+        onFocused = { onSettingFocused(SettingsItemDanmakuUpShortcut) },
+        onCheckedChange = onDanmakuUpShortcutEnabledChange,
       )
     }
     item(key = "confirm-playback-exit") {
@@ -604,26 +624,28 @@ private const val SettingsItemPlaybackQuality = 1
 private const val SettingsItemPlaybackCodec = 2
 private const val SettingsItemSeekPreviewSprites = 3
 private const val SettingsItemAirJumpAssistant = 4
-private const val SettingsItemConfirmPlaybackExit = 5
-private const val SettingsItemAutoPlayNextEpisode = 6
-private const val SettingsItemAutoPlayRelatedVideo = 7
-private const val SettingsItemAutoReturnHomeOnCompletion = 8
-private const val SettingsItemShowClock = 9
-private const val SettingsItemShowMiniProgressBar = 10
-private const val SettingsItemVisualPerformanceMode = 12
-private const val SettingsItemLiquidGlassCards = 13
-private const val SettingsItemHomeThemeVariant = 14
-private const val SettingsItemAutoConfirmOnFocus = 15
-private const val SettingsItemAutoRefreshOnSwitch = 16
-private const val SettingsItemClearCache = 18
-private const val SettingsItemChineseTextVariant = 19
-private const val SettingsItemAbout = 20
+private const val SettingsItemDanmakuUpShortcut = 5
+private const val SettingsItemConfirmPlaybackExit = 6
+private const val SettingsItemAutoPlayNextEpisode = 7
+private const val SettingsItemAutoPlayRelatedVideo = 8
+private const val SettingsItemAutoReturnHomeOnCompletion = 9
+private const val SettingsItemShowClock = 10
+private const val SettingsItemShowMiniProgressBar = 11
+private const val SettingsItemVisualPerformanceMode = 13
+private const val SettingsItemLiquidGlassCards = 14
+private const val SettingsItemHomeThemeVariant = 15
+private const val SettingsItemAutoConfirmOnFocus = 16
+private const val SettingsItemAutoRefreshOnSwitch = 17
+private const val SettingsItemClearCache = 19
+private const val SettingsItemChineseTextVariant = 20
+private const val SettingsItemAbout = 21
 
 private val SettingsFocusableItems = listOf(
   SettingsItemPlaybackQuality,
   SettingsItemPlaybackCodec,
   SettingsItemSeekPreviewSprites,
   SettingsItemAirJumpAssistant,
+  SettingsItemDanmakuUpShortcut,
   SettingsItemConfirmPlaybackExit,
   SettingsItemAutoPlayNextEpisode,
   SettingsItemAutoPlayRelatedVideo,

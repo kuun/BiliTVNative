@@ -46,6 +46,7 @@ class AppSettingsStore(private val context: Context) {
       playbackQualityPreference = PlaybackQualityPreference.fromKey(preferences[Keys.PlaybackQualityPreference]),
       playbackCodecPreference = PlaybackCodecPreference.fromKey(preferences[Keys.PlaybackCodecPreference]),
       seekPreviewSpritesEnabled = preferences[Keys.SeekPreviewSpritesEnabled] ?: true,
+      danmakuUpShortcutEnabled = preferences[Keys.DanmakuUpShortcutEnabled] ?: true,
       airJumpAssistantEnabled = preferences[Keys.AirJumpAssistantEnabled] ?: true,
       confirmPlaybackExit = preferences[Keys.ConfirmPlaybackExit] ?: true,
       autoPlayNextEpisode = preferences[Keys.AutoPlayNextEpisode] ?: false,
@@ -86,6 +87,12 @@ class AppSettingsStore(private val context: Context) {
   suspend fun setSeekPreviewSpritesEnabled(enabled: Boolean) {
     context.biliDataStore.edit { preferences ->
       preferences[Keys.SeekPreviewSpritesEnabled] = enabled
+    }
+  }
+
+  suspend fun setDanmakuUpShortcutEnabled(enabled: Boolean) {
+    context.biliDataStore.edit { preferences ->
+      preferences[Keys.DanmakuUpShortcutEnabled] = enabled
     }
   }
 
@@ -189,6 +196,7 @@ class AppSettingsStore(private val context: Context) {
     val PlaybackQualityPreference = stringPreferencesKey("playback_quality_preference")
     val PlaybackCodecPreference = stringPreferencesKey("playback_codec_preference")
     val SeekPreviewSpritesEnabled = booleanPreferencesKey("seek_preview_sprites_enabled")
+    val DanmakuUpShortcutEnabled = booleanPreferencesKey("danmaku_up_shortcut_enabled")
     val AirJumpAssistantEnabled = booleanPreferencesKey("air_jump_assistant_enabled")
     val ConfirmPlaybackExit = booleanPreferencesKey("confirm_playback_exit")
     val AutoPlayNextEpisode = booleanPreferencesKey("auto_play_next_episode")

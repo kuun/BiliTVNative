@@ -796,6 +796,11 @@ fun BiliTvApp(
                       appSettingsStore.setShowMiniProgressBar(enabled)
                     }
                   },
+                  onDanmakuUpShortcutEnabledChange = { enabled ->
+                    coroutineScope.launch {
+                      appSettingsStore.setDanmakuUpShortcutEnabled(enabled)
+                    }
+                  },
                   onAutoConfirmOnFocusChange = { enabled ->
                     coroutineScope.launch {
                       appSettingsStore.setAutoConfirmOnFocus(enabled)
@@ -851,6 +856,7 @@ fun BiliTvApp(
               autoReturnHomeOnCompletion = settings.autoReturnHomeOnCompletion,
               showClock = settings.showClock,
               showMiniProgressBar = settings.showMiniProgressBar,
+              danmakuUpShortcutEnabled = settings.danmakuUpShortcutEnabled,
               captureExitFrame = performancePolicy.motionEnabled && playbackSharedKey != null,
               onExitFrameReady = { frame ->
                 playbackExitFrame = frame

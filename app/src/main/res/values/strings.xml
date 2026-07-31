@@ -70,6 +70,8 @@
     <string name="settings_seek_preview_sprites_description">开启后快进快退时显示视频预览图，按确认跳转；关闭后只显示时间。</string>
     <string name="settings_air_jump_assistant_title">&#x7A7A;&#x964D;&#x52A9;&#x624B;</string>
     <string name="settings_air_jump_assistant_description">&#x81EA;&#x52A8;&#x8DF3;&#x8FC7;&#x89C6;&#x9891;&#x4E2D;&#x7684;&#x5E7F;&#x544A;&#x548C;&#x8D5E;&#x52A9;&#x7247;&#x6BB5;&#xFF0C;&#x5E76;&#x5728;&#x8FDB;&#x5EA6;&#x6761;&#x6807;&#x51FA;&#x8DF3;&#x8FC7;&#x8303;&#x56F4;&#x3002;</string>
+    <string name="settings_danmaku_up_shortcut_title">&#x5411;&#x4E0A;&#x952E;&#x5207;&#x6362;&#x5F39;&#x5E55;</string>
+    <string name="settings_danmaku_up_shortcut_description">&#x64AD;&#x653E;&#x65F6;&#x63A7;&#x5236;&#x5C42;&#x672A;&#x663E;&#x793A;&#xFF0C;&#x6309;&#x5411;&#x4E0A;&#x952E;&#x76F4;&#x63A5;&#x5F00;&#x5173;&#x5F39;&#x5E55;&#x3002;</string>
     <string name="settings_confirm_playback_exit_title">&#x9000;&#x51FA;&#x64AD;&#x653E;&#x4E8C;&#x6B21;&#x786E;&#x8BA4;</string>
     <string name="settings_confirm_playback_exit_description">&#x5F00;&#x542F;&#x540E;&#x9996;&#x6B21;&#x6309;&#x8FD4;&#x56DE;&#x952E;&#x53EA;&#x63D0;&#x793A;&#xFF0C;3 &#x79D2;&#x5185;&#x518D;&#x6309;&#x624D;&#x9000;&#x51FA;&#x64AD;&#x653E;&#x3002;</string>
     <string name="settings_auto_play_next_episode_title">&#x64AD;&#x5B8C;&#x81EA;&#x52A8;&#x8FDE;&#x64AD;</string>
@@ -205,6 +207,8 @@
     <string name="player_danmaku_count_status">&#x5F39;&#x5E55;:%1$s</string>
     <string name="player_danmaku_on">&#x5F39;&#x5E55;</string>
     <string name="player_danmaku_off">&#x5F39;&#x5E55;&#x5173;</string>
+    <string name="player_danmaku_enabled_toast">&#x5F39;&#x5E55;&#x5DF2;&#x5F00;&#x542F;</string>
+    <string name="player_danmaku_disabled_toast">&#x5F39;&#x5E55;&#x5DF2;&#x5173;&#x95ED;</string>
     <string name="player_comment_like_count">%1$s&#x8D5E;</string>
     <string name="player_comment_reply_count">%1$s&#x56DE;&#x590D;</string>
     <string name="player_settings_title">&#x64AD;&#x653E;&#x8BBE;&#x7F6E;</string>

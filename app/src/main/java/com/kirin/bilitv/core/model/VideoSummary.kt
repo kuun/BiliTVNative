@@ -23,6 +23,7 @@ data class VideoSummary(
   val pgcEpisodeId: Long = 0L,
   val pgcTypeName: String = "",
   val pgcIndexShow: String = "",
+  val pgcEpisodeIndex: Int = 0,
 )
 
 const val ProgressUnset = -1

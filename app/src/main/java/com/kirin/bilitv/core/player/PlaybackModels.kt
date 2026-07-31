@@ -49,6 +49,7 @@ data class PlaybackVideoMetadata(
   val danmakuCount: Int,
   val pubdate: Long,
   val pages: List<PlaybackEpisode>,
+  val pgcSeasonId: Long = 0L,
 )
 
 data class PlaybackEpisode(

@@ -71,7 +71,7 @@ internal class UserFeedRepository(
     val videos = list
       .mapNotNull { it.asObjectOrNull() }
       .map(VideoSummaryMappers::fromHistory)
-      .filter { it.bvid.isNotBlank() || it.isLive }
+      .filter { it.bvid.isNotBlank() || it.pgcEpisodeId > 0L || it.pgcSeasonId > 0L || it.isLive }
 
     val cursor = data.obj("cursor")
     return HistoryFeedPage(

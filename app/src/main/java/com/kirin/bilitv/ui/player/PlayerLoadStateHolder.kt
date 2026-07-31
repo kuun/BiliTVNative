@@ -333,6 +333,7 @@ private fun PlaybackRequest.withResolvedMetadata(
     viewCount = viewCount.takeIf { it > 0L } ?: metadata?.viewCount ?: 0L,
     danmakuCount = danmakuCount.takeIf { it > 0 } ?: metadata?.danmakuCount ?: 0,
     pubdate = pubdate.takeIf { it > 0L } ?: metadata?.pubdate ?: 0L,
+    pgcSeasonId = pgcSeasonId.takeIf { it > 0L } ?: metadata?.pgcSeasonId ?: 0L,
     pgcEpisodeId = pgcEpisodeId.takeIf { it > 0L } ?: selectedEpisode?.pgcEpisodeId ?: 0L,
   )
 }

@@ -786,11 +786,7 @@ private fun HistoryCoverMetadata(video: VideoSummary, modifier: Modifier = Modif
         .padding(horizontal = BiliSpacing.Sm),
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      val pageText = if (video.historyVideos > 1 && video.historyPage > 0) {
-        "P${video.historyPage}"
-      } else {
-        ""
-      }
+      val pageText = video.historyEpisodeBadgeText()
 
       if (pageText.isNotBlank()) {
         HistoryOverlayBadge(
@@ -832,6 +828,28 @@ private fun HistoryCoverMetadata(video: VideoSummary, modifier: Modifier = Modif
     }
   }
 }
+
+private fun VideoSummary.historyEpisodeBadgeText(): String {
+  val pgcTitle = pgcIndexShow.ifBlank { historyPart }
+  return when {
+    (pgcEpisodeId > 0L || pgcSeasonId > 0L) && pgcTitle.isNotBlank() -> {
+      val episodeIndex = pgcEpisodeIndex.takeIf { it > 0 } ?: historyPage
+      if (episodeIndex > 0 && !pgcTitle.hasEpisodeIndexPrefix()) {
+        "\u7b2c${episodeIndex}\u96c6 $pgcTitle"
+      } else {
+        pgcTitle
+      }
+    }
+    historyVideos > 1 && historyPage > 0 -> "P$historyPage"
+    else -> ""
+  }
+}
+
+private fun String.hasEpisodeIndexPrefix(): Boolean {
+  return EpisodeIndexPrefixRegex.containsMatchIn(this)
+}
+
+private val EpisodeIndexPrefixRegex = Regex("""^\s*(?:第\s*\d+\s*[集话話]|EP\.?\s*\d+|\d+\s*[集话話])""", RegexOption.IGNORE_CASE)
 
 @Composable
 private fun HistoryOverlayBadge(text: String, modifier: Modifier = Modifier) {

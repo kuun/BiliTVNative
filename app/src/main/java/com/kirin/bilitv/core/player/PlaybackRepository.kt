@@ -129,6 +129,14 @@ class PlaybackRepository(
     root.requireBiliCodeOk("view metadata")
 
     val data = root.obj("data") ?: JsonObject(emptyMap())
+    data.pgcRequestFromRedirect(request)?.let { pgcRequest ->
+      Log.i(
+        PlaybackLogTag,
+        "resolvePgcMetadataFromViewRedirect bvid=${request.bvid} cid=${request.cid} " +
+          "seasonId=${pgcRequest.pgcSeasonId} epId=${pgcRequest.pgcEpisodeId}",
+      )
+      return getPgcVideoMetadata(pgcRequest)
+    }
     val owner = data.obj("owner")
     val stat = data.obj("stat")
     val pages = (data["pages"] as? JsonArray)
@@ -170,6 +178,25 @@ class PlaybackRepository(
       request.pgcEpisodeId > 0L -> mapOf("ep_id" to request.pgcEpisodeId.toString())
       else -> emptyMap()
     }
+    val result = fetchPgcSeasonResult(params)
+    val metadata = result.toPgcVideoMetadata(request)
+    val resolvedSeasonId = metadata.pgcSeasonId.takeIf { it > 0L } ?: result.long("season_id")
+    if (request.pgcSeasonId <= 0L && request.pgcEpisodeId > 0L && metadata.pages.size <= 1 && resolvedSeasonId > 0L) {
+      val seasonResult = fetchPgcSeasonResult(mapOf("season_id" to resolvedSeasonId.toString()))
+      val seasonMetadata = seasonResult.toPgcVideoMetadata(request.copy(pgcSeasonId = resolvedSeasonId))
+      if (seasonMetadata.pages.size > metadata.pages.size) {
+        Log.i(
+          PlaybackLogTag,
+          "PlayerControl refillPgcSeasonMetadata epId=${request.pgcEpisodeId} " +
+            "seasonId=$resolvedSeasonId pages=${seasonMetadata.pages.size}",
+        )
+        return seasonMetadata
+      }
+    }
+    return metadata
+  }
+
+  private suspend fun fetchPgcSeasonResult(params: Map<String, String>): JsonObject {
     val sessData = sessionStore.sessData.first()
     val root = apiClient.getJson(
       url = BiliApiEndpoints.PgcSeason,
@@ -177,11 +204,13 @@ class PlaybackRepository(
       sessData = sessData,
     ).rootObject()
     root.requireBiliCodeOk("pgc season")
+    return root.obj("result") ?: JsonObject(emptyMap())
+  }
 
-    val result = root.obj("result") ?: JsonObject(emptyMap())
-    val episodes = (result["episodes"] as? JsonArray)
-      ?.mapIndexedNotNull { index, element ->
-        val episode = element.asObjectOrNull() ?: return@mapIndexedNotNull null
+  private fun JsonObject.toPgcVideoMetadata(request: PlaybackRequest): PlaybackVideoMetadata {
+    val episodeItems = pgcEpisodeItems()
+    val episodes = episodeItems
+      .mapIndexedNotNull { index, episode ->
         PlaybackEpisode(
           cid = episode.long("cid"),
           page = index + 1,
@@ -194,21 +223,27 @@ class PlaybackRepository(
           pgcEpisodeId = episode.long("ep_id").takeIf { it > 0L } ?: episode.long("id"),
         )
       }
-      ?.filter { episode -> episode.cid > 0L || episode.pgcEpisodeId > 0L }
-      .orEmpty()
+      .filter { episode -> episode.cid > 0L || episode.pgcEpisodeId > 0L }
+      .distinctBy { episode ->
+        when {
+          episode.pgcEpisodeId > 0L -> "ep-${episode.pgcEpisodeId}"
+          episode.cid > 0L -> "cid-${episode.cid}"
+          else -> "page-${episode.page}"
+        }
+      }
     val selectedEpisode = episodes.firstOrNull { episode ->
       (request.pgcEpisodeId > 0L && episode.pgcEpisodeId == request.pgcEpisodeId) ||
         (request.cid > 0L && episode.cid == request.cid)
     } ?: episodes.firstOrNull()
-    val stat = result.obj("stat")
-    val upInfo = result.obj("up_info")
+    val stat = obj("stat")
+    val upInfo = obj("up_info")
 
     return PlaybackVideoMetadata(
       aid = selectedEpisode?.aid ?: 0L,
       bvid = selectedEpisode?.bvid.orEmpty().ifBlank { request.bvid },
       cid = selectedEpisode?.cid ?: request.cid,
-      title = result.string("title")
-        .ifBlank { result.string("season_title") }
+      title = string("title")
+        .ifBlank { string("season_title") }
         .ifBlank { request.title },
       ownerName = upInfo?.string("uname").orEmpty(),
       ownerFace = upInfo?.string("avatar").orEmpty(),
@@ -216,13 +251,52 @@ class PlaybackRepository(
       viewCount = BiliNumberParser.toLong(stat?.get("views")),
       danmakuCount = BiliNumberParser.toInt(stat?.get("danmakus")),
       pubdate = selectedEpisode?.let { episode ->
-        (result["episodes"] as? JsonArray)
-          ?.mapNotNull { it.asObjectOrNull() }
-          ?.firstOrNull { item -> item.long("cid") == episode.cid || item.long("ep_id") == episode.pgcEpisodeId }
+        episodeItems.firstOrNull { item -> item.long("cid") == episode.cid || item.long("ep_id") == episode.pgcEpisodeId }
           ?.long("pub_time")
       } ?: 0L,
       pages = episodes,
+      pgcSeasonId = request.pgcSeasonId.takeIf { it > 0L } ?: long("season_id"),
     )
+  }
+
+  private fun JsonObject.pgcEpisodeItems(): List<JsonObject> {
+    val directEpisodes = jsonArrayObjects("episodes")
+    val mainSectionEpisodes = obj("main_section")?.jsonArrayObjects("episodes").orEmpty()
+    val sectionEpisodes = jsonArrayObjects("section")
+      .flatMap { section -> section.jsonArrayObjects("episodes") }
+    val sectionsEpisodes = jsonArrayObjects("sections")
+      .flatMap { section -> section.jsonArrayObjects("episodes") }
+    return directEpisodes + mainSectionEpisodes + sectionEpisodes + sectionsEpisodes
+  }
+
+  private fun JsonObject.jsonArrayObjects(key: String): List<JsonObject> {
+    return (this[key] as? JsonArray)
+      ?.mapNotNull { element -> element.asObjectOrNull() }
+      .orEmpty()
+  }
+
+  private fun JsonObject.pgcRequestFromRedirect(request: PlaybackRequest): PlaybackRequest? {
+    val redirectUrl = string("redirect_url")
+      .ifBlank { string("short_link_v2") }
+      .ifBlank { string("short_link") }
+    val episodeId = redirectUrl.extractLongAfter("ep")
+    val seasonId = redirectUrl.extractLongAfter("ss")
+    if (episodeId <= 0L && seasonId <= 0L) {
+      return null
+    }
+    return request.copy(
+      pgcSeasonId = seasonId,
+      pgcEpisodeId = episodeId,
+    )
+  }
+
+  private fun String.extractLongAfter(prefix: String): Long {
+    return Regex("""(?:^|[/?&#])$prefix(\d+)""")
+      .find(this)
+      ?.groupValues
+      ?.getOrNull(1)
+      ?.toLongOrNull()
+      ?: 0L
   }
 
   suspend fun getOnlineCount(aid: Long, cid: Long): String? {

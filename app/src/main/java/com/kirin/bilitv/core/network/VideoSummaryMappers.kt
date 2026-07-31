@@ -59,6 +59,22 @@ internal object VideoSummaryMappers {
     val cover = json.string("cover").ifBlank { json.string("pic") }
     val badge = json.string("badge")
     val business = history?.string("business").orEmpty()
+    val uri = json.pgcUri(history)
+    val pgcEpisodeId = history.pgcEpisodeId(uri = uri).takeIf { it > 0L }
+      ?: json.pgcEpisodeId(uri = uri).takeIf { it > 0L }
+      ?: 0L
+    val pgcSeasonId = history.pgcSeasonId(uri = uri).takeIf { it > 0L }
+      ?: json.pgcSeasonId(uri = uri).takeIf { it > 0L }
+      ?: 0L
+    val pgcIndexShow = json.string("show_title")
+      .ifBlank { json.string("long_title") }
+      .ifBlank { json.string("subtitle") }
+      .ifBlank { history?.string("part").orEmpty() }
+    val pgcEpisodeIndex = if (pgcEpisodeId > 0L || pgcSeasonId > 0L) {
+      json.pgcEpisodeIndex(history)
+    } else {
+      0
+    }
     val isLive = json.int("live_status") == 1 ||
       business == "live" ||
       badge.contains("\u76f4\u64ad") ||
@@ -79,10 +95,18 @@ internal object VideoSummaryMappers {
       progress = json.int("progress"),
       viewAt = json.long("view_at"),
       cid = history?.long("cid")?.takeIf { it != 0L } ?: (history?.long("oid") ?: 0L),
-      historyPage = history?.int("page") ?: 0,
-      historyPart = history?.string("part").orEmpty(),
+      historyPage = (history?.int("page") ?: 0).takeIf { it > 0 } ?: pgcEpisodeIndex,
+      historyPart = history?.string("part").orEmpty()
+        .ifBlank { json.string("long_title") }
+        .ifBlank { json.string("show_title") },
       historyVideos = json.int("videos"),
       isLive = isLive,
+      pgcSeasonId = pgcSeasonId,
+      pgcEpisodeId = pgcEpisodeId,
+      pgcTypeName = json.string("season_type_name")
+        .ifBlank { history?.string("season_type_name").orEmpty() },
+      pgcIndexShow = pgcIndexShow,
+      pgcEpisodeIndex = pgcEpisodeIndex,
     )
   }
 
@@ -200,5 +224,73 @@ internal object VideoSummaryMappers {
     return if (badge == "\u6295\u7a3f\u89c6\u9891" || badge == "\u6295\u7a3f") "" else badge
   }
 
+  private fun JsonObject?.pgcEpisodeId(uri: String): Long {
+    if (this == null) {
+      return uri.extractLongAfter("ep")
+    }
+    return long("epid").takeIf { it > 0L }
+      ?: long("ep_id").takeIf { it > 0L }
+      ?: long("episode_id").takeIf { it > 0L }
+      ?: uri.extractLongAfter("ep")
+  }
+
+  private fun JsonObject?.pgcSeasonId(uri: String): Long {
+    if (this == null) {
+      return uri.extractLongAfter("ss")
+    }
+    return long("season_id").takeIf { it > 0L }
+      ?: long("ssid").takeIf { it > 0L }
+      ?: long("pgc_season_id").takeIf { it > 0L }
+      ?: uri.extractLongAfter("ss")
+  }
+
+  private fun String.extractLongAfter(prefix: String): Long {
+    return Regex("""(?:^|[/?&#])$prefix(\d+)""")
+      .find(this)
+      ?.groupValues
+      ?.getOrNull(1)
+      ?.toLongOrNull()
+      ?: 0L
+  }
+
+  private fun JsonObject.pgcEpisodeIndex(history: JsonObject?): Int {
+    return listOf(
+      history?.int("page") ?: 0,
+      history?.int("ep_index") ?: 0,
+      history?.int("episode_index") ?: 0,
+      history?.int("index") ?: 0,
+      int("page"),
+      int("ep_index"),
+      int("episode_index"),
+      int("index"),
+    ).firstOrNull { it > 0 }
+      ?: parseEpisodeIndex(
+        history?.string("part").orEmpty(),
+        string("index_show"),
+        string("show_title"),
+        string("long_title"),
+      )
+  }
+
+  private fun JsonObject.pgcUri(history: JsonObject?): String {
+    return string("uri")
+      .ifBlank { string("redirect_url") }
+      .ifBlank { string("show_link") }
+      .ifBlank { string("link") }
+      .ifBlank { history?.string("uri").orEmpty() }
+      .ifBlank { history?.string("redirect_url").orEmpty() }
+      .ifBlank { history?.string("show_link").orEmpty() }
+      .ifBlank { history?.string("link").orEmpty() }
+  }
+
+  private fun parseEpisodeIndex(vararg texts: String): Int {
+    return texts
+      .asSequence()
+      .mapNotNull { text -> EpisodeIndexRegex.find(text)?.groupValues?.getOrNull(1)?.toIntOrNull() }
+      .firstOrNull { it > 0 }
+      ?: 0
+  }
+
   private val HtmlTagRegex = Regex("<[^>]*>")
+  private val EpisodeIndexRegex = Regex("""(?:第|^|EP\.?\s*)(\d+)(?:[集话話]|$|\s)""", RegexOption.IGNORE_CASE)
 }

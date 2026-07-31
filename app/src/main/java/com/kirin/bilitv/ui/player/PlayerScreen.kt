@@ -1146,6 +1146,19 @@ fun PlayerScreen(
   DisposableEffect(player) {
     val listener = object : Player.Listener {
       override fun onPlayerError(error: PlaybackException) {
+        val retryPositionMs = player.currentPosition
+          .takeIf { position -> position > 0L }
+          ?: playbackPositionState.longValue
+        val loadState = playerLoadStateHolder.viewState
+        Log.w(
+          PlayerErrorLogTag,
+          "playback error bvid=${loadState.displayRequest.bvid} " +
+            "cid=${loadState.displayRequest.cid} seasonId=${loadState.displayRequest.pgcSeasonId} " +
+            "epId=${loadState.displayRequest.pgcEpisodeId} positionMs=$retryPositionMs " +
+            "code=${error.errorCode} cause=${error.cause?.toLogBrief().orEmpty()}",
+        )
+        playerLoadStateHolder.checkpointRetryPosition(retryPositionMs)
+        saveAndReportProgress()
         playerLoadStateHolder.fail(error.message.orEmpty())
       }
 
@@ -2446,6 +2459,7 @@ private const val AirJumpWarningLeadMs = 3_500L
 private const val AirJumpCompletionToastSuppressMs = 1_500L
 private const val AirJumpRewindResetThresholdMs = 2_000L
 private const val AirJumpRewindResetLeadMs = 1_000L
+private const val PlayerErrorLogTag = "BiliTVNative:PlayerError"
 private const val PlayerDanmakuLogTag = "BiliTVNative:Danmaku"
 private val DanmakuOpacityOptions = listOf(0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f)
 private val DanmakuFontSizeOptions = listOf(16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36)

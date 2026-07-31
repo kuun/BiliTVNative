@@ -129,6 +129,20 @@ internal class PlayerLoadStateHolder(
     )
   }
 
+  fun checkpointRetryPosition(positionMs: Long) {
+    if (viewState.screenState !is PlayerScreenState.Ready) return
+    val checkpointRequest = viewState.displayRequest.copy(
+      startPositionMs = positionMs.coerceAtLeast(0L),
+      preferredQualityId = viewState.selectedQuality?.id ?: viewState.activeRequest.preferredQualityId,
+      forceStartPosition = true,
+      advanceToNextHistoryEpisode = false,
+    )
+    viewState = viewState.copy(
+      activeRequest = checkpointRequest,
+      displayRequest = checkpointRequest,
+    )
+  }
+
   fun fail(message: String) {
     viewState = viewState.copy(screenState = PlayerScreenState.Failed(message))
   }

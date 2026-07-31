@@ -505,6 +505,9 @@ fun PlayerScreen(
       cid = state.info.cid,
       positionMs = currentPositionMs,
       durationMs = currentDurationMs,
+      pgcSeasonId = displayRequest.pgcSeasonId,
+      pgcEpisodeId = displayRequest.pgcEpisodeId,
+      historyPage = displayRequest.historyPage,
     )
   }
 

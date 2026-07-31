@@ -274,15 +274,31 @@ class PlaybackRepository(
     return progressStore.getLatestProgress(bvid = bvid)
   }
 
+  suspend fun getLatestSeasonSavedProgress(seasonId: Long): SeasonPlaybackProgress? {
+    return progressStore.getLatestSeasonProgress(seasonId = seasonId)
+  }
+
   suspend fun saveProgress(
     bvid: String,
     cid: Long,
     positionMs: Long,
     durationMs: Long,
+    pgcSeasonId: Long = 0L,
+    pgcEpisodeId: Long = 0L,
+    historyPage: Int = 0,
   ) {
     progressStore.saveProgress(
       bvid = bvid,
       cid = cid,
+      positionMs = positionMs,
+      durationMs = durationMs,
+    )
+    progressStore.saveSeasonProgress(
+      seasonId = pgcSeasonId,
+      episodeId = pgcEpisodeId,
+      bvid = bvid,
+      cid = cid,
+      page = historyPage,
       positionMs = positionMs,
       durationMs = durationMs,
     )

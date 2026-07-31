@@ -54,7 +54,14 @@ internal class PlayerLoadStateHolder(
     missingCidMessage: String,
     emptyTracksMessage: String,
   ): PlayerScreenState.Ready? {
-    val loadRequest = viewState.activeRequest
+    val originalLoadRequest = viewState.activeRequest
+    val loadRequest = originalLoadRequest.withLatestPgcSeasonProgressIfNeeded(playbackRepository)
+    if (loadRequest != originalLoadRequest) {
+      viewState = viewState.copy(
+        activeRequest = loadRequest,
+        displayRequest = loadRequest,
+      )
+    }
     viewState = viewState.copy(screenState = PlayerScreenState.Loading)
     return try {
       val videoMetadata = reusableMetadataFor(loadRequest) ?: fetchVideoMetadataForInitialLoad(loadRequest)
@@ -275,6 +282,30 @@ private fun PlaybackRequest.withNextHistoryEpisodeIfNeeded(
 
 private fun PlaybackRequest.canUseLatestSavedProgress(): Boolean {
   return bvid.isNotBlank() && pgcEpisodeId <= 0L && preferredQualityId == null && !forceStartPosition
+}
+
+private suspend fun PlaybackRequest.withLatestPgcSeasonProgressIfNeeded(
+  playbackRepository: PlaybackRepository,
+): PlaybackRequest {
+  if (pgcSeasonId <= 0L || preferredQualityId != null || forceStartPosition) {
+    return this
+  }
+  val seasonProgress = playbackRepository.getLatestSeasonSavedProgress(pgcSeasonId) ?: return this
+  if (seasonProgress.episodeId <= 0L) {
+    return this
+  }
+  Log.i(
+    PlayerControlLogTag,
+    "PlayerControl restorePgcSeasonProgress seasonId=$pgcSeasonId epId=${seasonProgress.episodeId} " +
+      "cid=${seasonProgress.cid} positionMs=${seasonProgress.positionMs}",
+  )
+  return copy(
+    bvid = seasonProgress.bvid.ifBlank { bvid },
+    cid = seasonProgress.cid.takeIf { it > 0L } ?: cid,
+    startPositionMs = seasonProgress.positionMs.coerceAtLeast(0L),
+    historyPage = seasonProgress.page.takeIf { it > 0 } ?: historyPage,
+    pgcEpisodeId = seasonProgress.episodeId,
+  )
 }
 
 private fun PlaybackVideoMetadata?.hasEpisodeCid(cid: Long): Boolean {

@@ -30,7 +30,18 @@ data class PlaybackInfo(
   val videoTracks: List<PlaybackTrack>,
   val audioTracks: List<PlaybackTrack>,
   val headers: BiliPlaybackHeaders,
-)
+) {
+  fun withPrimaryTrackUrl(track: PlaybackTrack, url: String): PlaybackInfo {
+    val updatedTrack = track.copy(
+      baseUrl = url,
+      backupUrls = track.playbackUrls().filterNot { candidate -> candidate == url },
+    )
+    return copy(
+      videoTracks = videoTracks.replaceTrack(track, updatedTrack),
+      audioTracks = audioTracks.replaceTrack(track, updatedTrack),
+    )
+  }
+}
 
 data class PlaybackQuality(
   val id: Int,
@@ -73,6 +84,13 @@ data class PlaybackTrack(
   val mimeType: String,
   val segmentBase: PlaybackSegmentBase,
 ) {
+  fun playbackUrls(): List<String> {
+    return (listOf(baseUrl) + backupUrls)
+      .map(String::trim)
+      .filter(String::isNotBlank)
+      .distinct()
+  }
+
   val isH264: Boolean
     get() = codecs.contains("avc", ignoreCase = true)
 
@@ -87,3 +105,21 @@ data class PlaybackSegmentBase(
   val initializationRange: String,
   val indexRange: String,
 )
+
+private fun List<PlaybackTrack>.replaceTrack(
+  current: PlaybackTrack,
+  replacement: PlaybackTrack,
+): List<PlaybackTrack> {
+  return map { track ->
+    if (
+      track.id == current.id &&
+      track.codecs == current.codecs &&
+      track.baseUrl == current.baseUrl &&
+      track.segmentBase == current.segmentBase
+    ) {
+      replacement
+    } else {
+      track
+    }
+  }
+}

@@ -21,6 +21,7 @@ internal data class PlayerLoadViewState(
   val metadata: PlaybackVideoMetadata?,
   val selectedQuality: PlaybackQuality?,
   val retryToken: Long,
+  val failedRetryRequest: PlaybackRequest?,
 )
 
 internal sealed interface PlayerScreenState {
@@ -44,6 +45,7 @@ internal class PlayerLoadStateHolder(
       metadata = null,
       selectedQuality = null,
       retryToken = 0L,
+      failedRetryRequest = null,
     ),
   )
     private set
@@ -118,6 +120,7 @@ internal class PlayerLoadStateHolder(
         viewState = viewState.copy(
           screenState = readyState,
           selectedQuality = info.selectedQuality,
+          failedRetryRequest = null,
         )
       }
       readyState
@@ -130,9 +133,13 @@ internal class PlayerLoadStateHolder(
   }
 
   fun retry() {
+    val retryRequest = viewState.failedRetryRequest
     viewState = viewState.copy(
+      activeRequest = retryRequest ?: viewState.activeRequest,
+      displayRequest = retryRequest ?: viewState.displayRequest,
       screenState = PlayerScreenState.Loading,
       retryToken = viewState.retryToken + 1L,
+      failedRetryRequest = null,
     )
   }
 
@@ -150,8 +157,53 @@ internal class PlayerLoadStateHolder(
     )
   }
 
-  fun fail(message: String) {
-    viewState = viewState.copy(screenState = PlayerScreenState.Failed(message))
+  fun fallbackToQuality(quality: PlaybackQuality, startPositionMs: Long) {
+    val fallbackRequest = viewState.displayRequest.copy(
+      startPositionMs = startPositionMs.coerceAtLeast(0L),
+      preferredQualityId = quality.id,
+      forceStartPosition = true,
+      advanceToNextHistoryEpisode = false,
+    )
+    viewState = viewState.copy(
+      activeRequest = fallbackRequest,
+      displayRequest = fallbackRequest,
+      screenState = PlayerScreenState.Loading,
+      selectedQuality = null,
+      failedRetryRequest = null,
+    )
+  }
+
+  fun fallbackToBackupCdn(
+    info: PlaybackInfo,
+    track: PlaybackTrack,
+    backupUrl: String,
+    startPositionMs: Long,
+  ): PlayerScreenState.Ready {
+    val fallbackInfo = info.withPrimaryTrackUrl(track = track, url = backupUrl)
+    val readyState = PlayerScreenState.Ready(
+      info = fallbackInfo,
+      startPositionMs = startPositionMs.coerceAtLeast(0L),
+    )
+    viewState = viewState.copy(
+      screenState = readyState,
+      failedRetryRequest = null,
+    )
+    return readyState
+  }
+
+  fun fail(message: String, retryPositionMs: Long? = null) {
+    val retryRequest = retryPositionMs?.let { positionMs ->
+      viewState.displayRequest.copy(
+        startPositionMs = positionMs.coerceAtLeast(0L),
+        preferredQualityId = viewState.selectedQuality?.id ?: viewState.activeRequest.preferredQualityId,
+        forceStartPosition = true,
+        advanceToNextHistoryEpisode = false,
+      )
+    }
+    viewState = viewState.copy(
+      screenState = PlayerScreenState.Failed(message),
+      failedRetryRequest = retryRequest,
+    )
   }
 
   fun startPlaybackRequest(nextRequest: PlaybackRequest, clearMetadata: Boolean) {
@@ -161,6 +213,7 @@ internal class PlayerLoadStateHolder(
       screenState = PlayerScreenState.Loading,
       metadata = if (clearMetadata) null else viewState.metadata,
       selectedQuality = if (nextRequest.preferredQualityId == null) null else viewState.selectedQuality,
+      failedRetryRequest = null,
     )
   }
 
@@ -172,6 +225,7 @@ internal class PlayerLoadStateHolder(
       ),
       screenState = PlayerScreenState.Loading,
       selectedQuality = quality,
+      failedRetryRequest = null,
     )
   }
 

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.media.AudioManager
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -83,6 +84,7 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -99,6 +101,7 @@ import com.kirin.bilitv.core.player.DanmakuSettings
 import com.kirin.bilitv.core.player.DanmakuSettingsStore
 import com.kirin.bilitv.core.player.PlaybackInfo
 import com.kirin.bilitv.core.player.PlaybackCodecPreference
+import com.kirin.bilitv.core.player.PlaybackQuality
 import com.kirin.bilitv.core.player.PlaybackQualityPreference
 import com.kirin.bilitv.core.player.PlaybackRepository
 import com.kirin.bilitv.core.player.PlaybackRequest
@@ -182,6 +185,7 @@ fun PlayerScreen(
   val metadata = loadViewState.metadata
   val selectedQuality = loadViewState.selectedQuality
   val loadRetryToken = loadViewState.retryToken
+  var fallbackCodecPreference by remember(request) { mutableStateOf<PlaybackCodecPreference?>(null) }
   val playerSidePanelStateHolder = remember { PlayerSidePanelStateHolder() }
   val sidePanelState = playerSidePanelStateHolder.viewState
   val sidePanelVideos = sidePanelState.videos
@@ -262,6 +266,10 @@ fun PlayerScreen(
         advanceToNextHistoryEpisode = false,
       ),
     )
+  }
+
+  LaunchedEffect(playbackCodecPreference) {
+    fallbackCodecPreference = null
   }
 
   LaunchedEffect(storedDanmakuSettings) {
@@ -821,6 +829,7 @@ fun PlayerScreen(
 
 	  fun startPlaybackRequest(nextRequest: PlaybackRequest, clearMetadata: Boolean) {
 	    cancelPendingCompletionAction()
+	    fallbackCodecPreference = null
 	    resetOnlineCountPolling()
 	    playerSidePanelStateHolder.clearVideos()
 	    commentsLoadJob?.cancel()
@@ -904,6 +913,115 @@ fun PlayerScreen(
   val latestPlayerState = rememberUpdatedState(playerState)
   val latestReportPlaybackCompleted = rememberUpdatedState { reportPlaybackCompleted() }
 
+  fun lowerQualityForHttpFallback(info: PlaybackInfo): PlaybackQuality? {
+    val currentQualityId = selectedQuality?.id ?: info.selectedQuality.id
+    if (currentQualityId <= HttpFallbackMinimumQualityBeforeCodec) {
+      return null
+    }
+    val targetQualityId = minOf(HttpFallbackPreferredQuality, currentQualityId - 1)
+    return info.qualities
+      .asSequence()
+      .filter { quality -> quality.id <= targetQualityId }
+      .sortedByDescending { quality -> quality.id }
+      .firstOrNull()
+  }
+
+  fun preparePlayback(readyState: PlayerScreenState.Ready) {
+    checkpointPlaybackSession(readyState.startPositionMs)
+    val info = readyState.info
+    currentCodecText = info.videoTracks.firstOrNull()?.codecLabel().orEmpty()
+    val mediaSource = DashMediaSource.Factory(
+      DefaultDataSource.Factory(
+        context,
+        BiliMediaDataSourceFactory(
+          client = playbackHttpClient,
+          headers = info.headers,
+        ).create(),
+      ),
+    ).createMediaSource(buildDashMediaItem(info))
+    player.clearMediaItems()
+    player.setMediaSource(mediaSource)
+    player.prepare()
+    player.setPlaybackSpeed(playbackSpeed)
+    if (readyState.startPositionMs > 0L) {
+      player.seekTo(readyState.startPositionMs)
+      playbackPositionState.longValue = readyState.startPositionMs
+      danmakuSyncToken += 1L
+    }
+    player.playWhenReady = true
+    playbackPaused = false
+  }
+
+  fun findBackupCdnFallback(
+    info: PlaybackInfo,
+    failedUrl: String?,
+  ): Pair<PlaybackTrack, String>? {
+    val tracks = info.videoTracks + info.audioTracks
+    val failedTrack = failedUrl?.let { url ->
+      tracks.firstOrNull { track -> track.playbackUrls().contains(url) }
+    }
+    val track = failedTrack ?: info.videoTracks.firstOrNull { candidate -> candidate.backupUrls.isNotEmpty() }
+      ?: info.audioTracks.firstOrNull { candidate -> candidate.backupUrls.isNotEmpty() }
+      ?: return null
+    val urls = track.playbackUrls()
+    val failedIndex = failedUrl?.let { url -> urls.indexOf(url) } ?: -1
+    val currentIndex = urls.indexOf(track.baseUrl).coerceAtLeast(0)
+    val nextIndex = (if (failedIndex >= 0) failedIndex else currentIndex) + 1
+    return urls.getOrNull(nextIndex)?.let { backupUrl -> track to backupUrl }
+  }
+
+  fun tryAutoFallbackForSourceError(error: PlaybackException, retryPositionMs: Long): Boolean {
+    val httpStatusCode = error.httpResponseCode() ?: return false
+    if (httpStatusCode !in AutoFallbackHttpStatusCodes) return false
+    val info = (latestPlayerState.value as? PlayerScreenState.Ready)?.info ?: return false
+    val failedUrl = error.httpRequestUri()
+    val backupCdnFallback = findBackupCdnFallback(info = info, failedUrl = failedUrl)
+    val loadState = playerLoadStateHolder.viewState
+    if (backupCdnFallback != null) {
+      val (track, backupUrl) = backupCdnFallback
+      Log.w(
+        PlayerErrorLogTag,
+        "auto fallback cdn status=$httpStatusCode quality=${track.id} codec=${track.codecLabel()} " +
+          "from=${track.baseUrl.safeHost()} to=${backupUrl.safeHost()} " +
+          "bvid=${loadState.displayRequest.bvid} cid=${loadState.displayRequest.cid} positionMs=$retryPositionMs",
+      )
+      val readyState = playerLoadStateHolder.fallbackToBackupCdn(
+        info = info,
+        track = track,
+        backupUrl = backupUrl,
+        startPositionMs = retryPositionMs,
+      )
+      preparePlayback(readyState)
+      return true
+    }
+    val lowerQuality = lowerQualityForHttpFallback(info)
+    if (lowerQuality != null) {
+      Log.w(
+        PlayerErrorLogTag,
+        "auto fallback quality status=$httpStatusCode from=${info.selectedQuality.id} to=${lowerQuality.id} " +
+          "bvid=${loadState.displayRequest.bvid} cid=${loadState.displayRequest.cid} positionMs=$retryPositionMs",
+      )
+      playerLoadStateHolder.fallbackToQuality(
+        quality = lowerQuality,
+        startPositionMs = retryPositionMs,
+      )
+      latestOnPlaybackRequestChanged.value(playerLoadStateHolder.viewState.activeRequest)
+      return true
+    }
+    if (fallbackCodecPreference != PlaybackCodecPreference.H264 && playbackCodecPreference != PlaybackCodecPreference.H264) {
+      Log.w(
+        PlayerErrorLogTag,
+        "auto fallback codec status=$httpStatusCode from=${playbackCodecPreference.key} to=${PlaybackCodecPreference.H264.key} " +
+          "bvid=${loadState.displayRequest.bvid} cid=${loadState.displayRequest.cid} positionMs=$retryPositionMs",
+      )
+      playerLoadStateHolder.checkpointRetryPosition(retryPositionMs)
+      fallbackCodecPreference = PlaybackCodecPreference.H264
+      latestOnPlaybackRequestChanged.value(playerLoadStateHolder.viewState.activeRequest)
+      return true
+    }
+    return false
+  }
+
   fun panelItemCount(): Int {
     val info = (playerState as? PlayerScreenState.Ready)?.info
     return when (activePanel) {
@@ -946,6 +1064,7 @@ fun PlayerScreen(
       }
       PlayerPanel.Quality -> {
         val quality = info.qualities.getOrNull(focusedPanelIndex) ?: return
+        fallbackCodecPreference = null
         playerLoadStateHolder.selectQuality(
           quality = quality,
           startPositionMs = player.currentPosition.takeIf { it > 0L } ?: playbackPositionState.longValue,
@@ -1189,11 +1308,17 @@ fun PlayerScreen(
           "playback error bvid=${loadState.displayRequest.bvid} " +
             "cid=${loadState.displayRequest.cid} seasonId=${loadState.displayRequest.pgcSeasonId} " +
             "epId=${loadState.displayRequest.pgcEpisodeId} positionMs=$retryPositionMs " +
-            "code=${error.errorCode} cause=${error.cause?.toLogBrief().orEmpty()}",
+            "code=${error.errorCode} http=${error.httpResponseCode() ?: 0} cause=${error.cause?.toLogBrief().orEmpty()}",
         )
-        playerLoadStateHolder.checkpointRetryPosition(retryPositionMs)
+        if (tryAutoFallbackForSourceError(error = error, retryPositionMs = retryPositionMs)) {
+          saveAndReportProgress()
+          return
+        }
         saveAndReportProgress()
-        playerLoadStateHolder.fail(error.message.orEmpty())
+        playerLoadStateHolder.fail(
+          message = error.message.orEmpty(),
+          retryPositionMs = retryPositionMs,
+        )
       }
 
       override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -1246,7 +1371,8 @@ fun PlayerScreen(
     }
   }
 
-  LaunchedEffect(activeRequest, playbackCodecPreference, playbackQualityPreference, loadRetryToken) {
+  val effectivePlaybackCodecPreference = fallbackCodecPreference ?: playbackCodecPreference
+  LaunchedEffect(activeRequest, effectivePlaybackCodecPreference, playbackQualityPreference, loadRetryToken) {
 	    cancelPendingCompletionAction()
 	    previewPositionMs = null
 	    touchGestureStateHolder.clearSeek()
@@ -1270,7 +1396,7 @@ fun PlayerScreen(
     player.clearMediaItems()
     playerCompletionCoordinator.clearReported()
     val readyState = playerLoadStateHolder.load(
-      codecPreference = playbackCodecPreference,
+      codecPreference = effectivePlaybackCodecPreference,
       qualityPreference = playbackQualityPreference,
       missingCidMessage = context.getString(R.string.player_error_missing_cid),
       emptyTracksMessage = context.getString(R.string.player_error_empty_tracks),
@@ -1283,29 +1409,8 @@ fun PlayerScreen(
         playerLoadStateHolder.resolveDisplayMetadata()
       }
     }
-    checkpointPlaybackSession(readyState.startPositionMs)
     try {
-      val info = readyState.info
-      currentCodecText = info.videoTracks.firstOrNull()?.codecLabel().orEmpty()
-      val mediaSource = DashMediaSource.Factory(
-        DefaultDataSource.Factory(
-          context,
-          BiliMediaDataSourceFactory(
-            client = playbackHttpClient,
-            headers = info.headers,
-          ).create(),
-        ),
-      ).createMediaSource(buildDashMediaItem(info))
-      player.setMediaSource(mediaSource)
-      player.prepare()
-      player.setPlaybackSpeed(playbackSpeed)
-      if (readyState.startPositionMs > 0L) {
-        player.seekTo(readyState.startPositionMs)
-        playbackPositionState.longValue = readyState.startPositionMs
-        danmakuSyncToken += 1L
-      }
-      player.playWhenReady = true
-      playbackPaused = false
+      preparePlayback(readyState)
     } catch (error: CancellationException) {
       throw error
     } catch (error: Exception) {
@@ -1986,7 +2091,9 @@ private fun buildDashManifest(info: PlaybackInfo): String {
 }
 
 private fun PlaybackTrack.toRepresentation(adaptationSetId: String, contentType: String): String {
-  val escapedUrl = baseUrl.escapeXml()
+  val baseUrls = playbackUrls().joinToString(separator = "\n") { url ->
+    "      <BaseURL>${url.escapeXml()}</BaseURL>"
+  }
   val dimensions = if (contentType == "video") {
     """ width="$width" height="$height""""
   } else {
@@ -1994,7 +2101,7 @@ private fun PlaybackTrack.toRepresentation(adaptationSetId: String, contentType:
   }
   return """
     <Representation id="${adaptationSetId}_$id" bandwidth="$bandwidth" codecs="${codecs.escapeXml()}"$dimensions>
-      <BaseURL>$escapedUrl</BaseURL>
+$baseUrls
       <SegmentBase indexRange="${segmentBase.indexRange.escapeXml()}">
         <Initialization range="${segmentBase.initializationRange.escapeXml()}" />
       </SegmentBase>
@@ -2493,6 +2600,36 @@ private enum class PlayerTouchDragMode {
   Ignored,
 }
 
+private fun Throwable.httpResponseCode(): Int? {
+  var current: Throwable? = this
+  while (current != null) {
+    val responseCode = (current as? HttpDataSource.InvalidResponseCodeException)?.responseCode
+    if (responseCode != null) {
+      return responseCode
+    }
+    current = current.cause
+  }
+  return null
+}
+
+private fun Throwable.httpRequestUri(): String? {
+  var current: Throwable? = this
+  while (current != null) {
+    val uri = (current as? HttpDataSource.InvalidResponseCodeException)?.dataSpec?.uri?.toString()
+    if (!uri.isNullOrBlank()) {
+      return uri
+    }
+    current = current.cause
+  }
+  return null
+}
+
+private fun String.safeHost(): String {
+  return runCatching { Uri.parse(this).host.orEmpty() }
+    .getOrDefault("")
+    .ifBlank { "unknown" }
+}
+
 private const val SeekStepMs = 10_000L
 private const val TouchSeekRangeMs = 90_000L
 private const val TouchSpeedBoostRate = 2.0f
@@ -2508,6 +2645,9 @@ private const val AirJumpWarningLeadMs = 3_500L
 private const val AirJumpCompletionToastSuppressMs = 1_500L
 private const val AirJumpRewindResetThresholdMs = 2_000L
 private const val AirJumpRewindResetLeadMs = 1_000L
+private const val HttpFallbackPreferredQuality = 80
+private const val HttpFallbackMinimumQualityBeforeCodec = 80
+private val AutoFallbackHttpStatusCodes = setOf(403, 404, 503)
 private const val PlayerErrorLogTag = "BiliTVNative:PlayerError"
 private const val PlayerDanmakuLogTag = "BiliTVNative:Danmaku"
 private val DanmakuOpacityOptions = listOf(0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f)

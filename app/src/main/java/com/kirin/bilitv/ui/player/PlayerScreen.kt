@@ -1216,6 +1216,7 @@ fun PlayerScreen(
     when (focusedControl) {
       PlayerControl.Settings -> openPanel(PlayerPanel.Main)
       PlayerControl.Episodes -> openEpisodesPanel()
+      PlayerControl.Quality -> openPanel(PlayerPanel.Quality)
       PlayerControl.Up -> openUpVideos(UpVideoOrderLatest)
       PlayerControl.Related -> {
         openVideoListPanel(

@@ -188,6 +188,7 @@ object BiliSizing {
   val PlayerProgressFocusedKnobSize = 20.dp
   val PlayerMiniProgressHeight = 3.dp
   val PlayerControlIconButtonSize = 60.dp
+  val PlayerControlQualityButtonWidth = 84.dp
   val PlayerControlIconSize = 36.dp
   val PlayerStatusMinWidth = 84.dp
   val PlayerSettingsPanelWidth = 350.dp

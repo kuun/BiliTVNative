@@ -103,6 +103,7 @@ internal enum class PlayerControl {
   Up,
   Related,
   Settings,
+  Quality,
 }
 
 internal enum class PlayerPanel {
@@ -930,7 +931,8 @@ private fun PlayerBottomOverlay(
       modifier = Modifier.fillMaxWidth(),
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      PlayerControl.entries.forEachIndexed { index, control ->
+      val iconControls = PlayerControl.entries.filterNot { control -> control == PlayerControl.Quality }
+      iconControls.forEachIndexed { index, control ->
         val focused = controlFocusVisible && !progressFocused && focusedControl == control
         val onClick = {
           Log.i(PlayerControlLogTag, "PlayerControl tvOverlayButtonClick control=$control")
@@ -955,18 +957,70 @@ private fun PlayerBottomOverlay(
             onClick = onClick,
           )
         }
-        if (index != PlayerControl.entries.lastIndex) {
+        if (index != iconControls.lastIndex) {
           Spacer(modifier = Modifier.width(BiliSpacing.Xl))
         }
       }
       Spacer(modifier = Modifier.weight(1f))
       PlayerStatusTexts(
         request = request,
-        info = info,
         onlineCountText = onlineCountText,
-        currentCodecText = currentCodecText,
+      )
+      Spacer(modifier = Modifier.width(BiliSpacing.Xl))
+      PlayerQualityButton(
+        text = info.selectedQuality.shortLabel(),
+        contentDescription = stringResource(R.string.player_settings_quality),
+        focused = controlFocusVisible && !progressFocused && focusedControl == PlayerControl.Quality,
+        onClick = {
+          Log.i(PlayerControlLogTag, "PlayerControl tvOverlayButtonClick control=${PlayerControl.Quality}")
+          onControlSelected(PlayerControl.Quality)
+        },
       )
     }
+  }
+}
+
+@Composable
+private fun PlayerQualityButton(
+  text: String,
+  contentDescription: String,
+  focused: Boolean,
+  onClick: () -> Unit,
+) {
+  val shape = RoundedCornerShape(BiliRadius.Card)
+  val interactionSource = remember { MutableInteractionSource() }
+  val focusSurfaceModifier = if (focused) {
+    Modifier.playerLiquidGlassSurface(
+      shape = shape,
+      focused = true,
+      surfaceColor = BiliColors.PlayerControlFocused,
+    )
+  } else {
+    Modifier
+  }
+  Box(
+    modifier = Modifier
+      .width(BiliSizing.PlayerControlQualityButtonWidth)
+      .height(BiliSizing.PlayerControlIconButtonSize)
+      .clip(shape)
+      .semantics { this.contentDescription = contentDescription }
+      .then(focusSurfaceModifier)
+      .clickable(
+        interactionSource = interactionSource,
+        indication = null,
+        onClick = onClick,
+      )
+      .padding(horizontal = BiliSpacing.Sm),
+    contentAlignment = Alignment.Center,
+  ) {
+    Text(
+      text = text,
+      color = BiliColors.TextPrimary,
+      fontSize = BiliTypography.PlayerStatus,
+      fontWeight = FontWeight.Bold,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+    )
   }
 }
 
@@ -1103,9 +1157,7 @@ private fun PlayerDanmakuButton(
 @Composable
 private fun PlayerStatusTexts(
   request: PlaybackRequest,
-  info: PlaybackInfo,
   onlineCountText: String,
-  currentCodecText: String,
 ) {
   Row(
     horizontalArrangement = Arrangement.spacedBy(BiliSpacing.Lg),
@@ -1128,12 +1180,6 @@ private fun PlayerStatusTexts(
     }
     Text(
       text = danmakuText,
-      color = BiliColors.TextSecondary,
-      fontSize = BiliTypography.PlayerStatus,
-      maxLines = 1,
-    )
-    Text(
-      text = info.selectedQuality.description.withCodecLabel(currentCodecText),
       color = BiliColors.TextSecondary,
       fontSize = BiliTypography.PlayerStatus,
       maxLines = 1,
@@ -2678,6 +2724,7 @@ private fun PlayerControl.iconRes(): Int {
     PlayerControl.Related -> R.drawable.ic_player_related
     PlayerControl.Settings -> R.drawable.ic_nav_settings
     PlayerControl.Danmaku -> error("Danmaku control uses a custom glyph button")
+    PlayerControl.Quality -> error("Quality control uses a text button")
   }
 }
 
@@ -2686,6 +2733,7 @@ private val PlayerControl.labelRes: Int
   get() = when (this) {
     PlayerControl.Episodes -> R.string.player_control_episodes
     PlayerControl.Danmaku -> R.string.player_danmaku_on
+    PlayerControl.Quality -> R.string.player_settings_quality
     PlayerControl.Up -> R.string.player_control_up
     PlayerControl.Related -> R.string.player_control_related
     PlayerControl.Settings -> R.string.player_control_settings
@@ -2748,6 +2796,49 @@ private val PlayerPanel.titleRes: Int
 
 private fun String.withCodecLabel(codec: String): String {
   return if (codec.isBlank()) this else "$this($codec)"
+}
+
+private fun PlaybackQuality.shortLabel(): String {
+  val compactDescription = description
+    .uppercase(Locale.US)
+    .replace("超高清", "")
+    .replace("高清", "")
+    .replace("清晰", "")
+    .replace("流畅", "")
+    .replace("自动", "")
+    .replace("高帧率", "60")
+    .replace("高幀率", "60")
+    .replace(" ", "")
+  return when {
+    compactDescription.contains("8K") -> "8K"
+    compactDescription.contains("杜比") -> "杜比"
+    compactDescription.contains("HDR") -> "HDR"
+    compactDescription.contains("4K") -> "4K"
+    compactDescription.contains("1080P60") ||
+      (compactDescription.contains("1080") && compactDescription.contains("60")) -> "1080P60"
+    compactDescription.contains("1080P+") -> "1080P+"
+    compactDescription.contains("1080") -> "1080P"
+    compactDescription.contains("720P60") ||
+      (compactDescription.contains("720") && compactDescription.contains("60")) -> "720P60"
+    compactDescription.contains("720") -> "720P"
+    compactDescription.contains("480") -> "480P"
+    compactDescription.contains("360") -> "360P"
+    else -> when (id) {
+    127 -> "8K"
+    126 -> "杜比"
+    125 -> "HDR"
+    120 -> "4K"
+    116 -> "1080P60"
+    112 -> "1080P+"
+    80 -> "1080P"
+    74 -> "720P60"
+    64 -> "720P"
+    32 -> "480P"
+    16 -> "360P"
+    15 -> "极速"
+    else -> compactDescription.ifBlank { id.toString() }
+    }
+  }
 }
 
 private fun PlaybackEpisode.panelTitle(index: Int): String {

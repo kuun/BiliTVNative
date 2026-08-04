@@ -29,6 +29,8 @@ data class PlaybackInfo(
   val selectedQuality: PlaybackQuality,
   val videoTracks: List<PlaybackTrack>,
   val audioTracks: List<PlaybackTrack>,
+  val availableAudioTracks: List<PlaybackTrack> = audioTracks,
+  val selectedAudioTrack: PlaybackTrack? = audioTracks.firstOrNull(),
   val headers: BiliPlaybackHeaders,
 ) {
   fun withPrimaryTrackUrl(track: PlaybackTrack, url: String): PlaybackInfo {
@@ -39,6 +41,17 @@ data class PlaybackInfo(
     return copy(
       videoTracks = videoTracks.replaceTrack(track, updatedTrack),
       audioTracks = audioTracks.replaceTrack(track, updatedTrack),
+      availableAudioTracks = availableAudioTracks.replaceTrack(track, updatedTrack),
+      selectedAudioTrack = selectedAudioTrack?.let { selected ->
+        if (selected.matchesTrack(track)) updatedTrack else selected
+      },
+    )
+  }
+
+  fun withSelectedAudioTrack(track: PlaybackTrack): PlaybackInfo {
+    return copy(
+      audioTracks = listOf(track),
+      selectedAudioTrack = track,
     )
   }
 }
@@ -99,6 +112,21 @@ data class PlaybackTrack(
 
   val isAv1: Boolean
     get() = codecs.contains("av01", ignoreCase = true)
+
+  val isDolbyAudio: Boolean
+    get() = id == 30250 || codecs.contains("ec-3", ignoreCase = true)
+
+  val isHiResAudio: Boolean
+    get() = id == 30251 || codecs.contains("flac", ignoreCase = true)
+
+  val isHighSpecAudio: Boolean
+    get() = isDolbyAudio || isHiResAudio
+
+  fun matchesTrack(other: PlaybackTrack): Boolean {
+    return id == other.id &&
+      baseUrl == other.baseUrl &&
+      codecs == other.codecs
+  }
 }
 
 data class PlaybackSegmentBase(

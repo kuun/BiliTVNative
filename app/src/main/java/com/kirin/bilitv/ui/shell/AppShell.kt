@@ -761,6 +761,11 @@ fun BiliTvApp(
                       appSettingsStore.setPlaybackCodecPreference(preference)
                     }
                   },
+                  onPlaybackAudioPreferenceChange = { preference ->
+                    coroutineScope.launch {
+                      appSettingsStore.setPlaybackAudioPreference(preference)
+                    }
+                  },
                   onAirJumpAssistantEnabledChange = { enabled ->
                     coroutineScope.launch {
                       appSettingsStore.setAirJumpAssistantEnabled(enabled)
@@ -848,6 +853,7 @@ fun BiliTvApp(
               playbackHttpClient = playbackHttpClient,
               playbackCodecPreference = effectivePlaybackCodecPreference,
               playbackQualityPreference = settings.playbackQualityPreference,
+              playbackAudioPreference = settings.playbackAudioPreference,
               seekPreviewSpritesEnabled = settings.seekPreviewSpritesEnabled,
               airJumpAssistantEnabled = settings.airJumpAssistantEnabled,
               confirmPlaybackExit = settings.confirmPlaybackExit,

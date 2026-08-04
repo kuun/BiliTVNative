@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import com.kirin.bilitv.core.player.PlaybackCodecPreference
 import com.kirin.bilitv.core.player.PlaybackInfo
 import com.kirin.bilitv.core.player.PlaybackQuality
+import com.kirin.bilitv.core.player.PlaybackAudioPreference
 import com.kirin.bilitv.core.player.PlaybackQualityPreference
 import com.kirin.bilitv.core.player.PlaybackRepository
 import com.kirin.bilitv.core.player.PlaybackRequest
@@ -53,6 +54,7 @@ internal class PlayerLoadStateHolder(
   suspend fun load(
     codecPreference: PlaybackCodecPreference,
     qualityPreference: PlaybackQualityPreference,
+    audioPreference: PlaybackAudioPreference,
     missingCidMessage: String,
     emptyTracksMessage: String,
   ): PlayerScreenState.Ready? {
@@ -100,6 +102,7 @@ internal class PlayerLoadStateHolder(
         request = resolvedRequest,
         codecPreference = codecPreference,
         qualityPreference = qualityPreference,
+        audioPreference = audioPreference,
       )
       if (info.videoTracks.isEmpty() || info.audioTracks.isEmpty()) {
         fail(emptyTracksMessage)
@@ -227,6 +230,19 @@ internal class PlayerLoadStateHolder(
       selectedQuality = quality,
       failedRetryRequest = null,
     )
+  }
+
+  fun selectAudioTrack(track: PlaybackTrack, startPositionMs: Long): PlayerScreenState.Ready? {
+    val readyState = viewState.screenState as? PlayerScreenState.Ready ?: return null
+    val nextReadyState = readyState.copy(
+      info = readyState.info.withSelectedAudioTrack(track),
+      startPositionMs = startPositionMs.coerceAtLeast(0L),
+    )
+    viewState = viewState.copy(
+      screenState = nextReadyState,
+      failedRetryRequest = null,
+    )
+    return nextReadyState
   }
 
   suspend fun resolveDisplayMetadata(): PlaybackVideoMetadata? {

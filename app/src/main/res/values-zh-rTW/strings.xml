@@ -66,6 +66,12 @@
     <string name="settings_playback_codec_h264">H.264</string>
     <string name="settings_playback_codec_h265">H.265</string>
     <string name="settings_playback_codec_av1">AV1</string>
+    <string name="settings_playback_audio_title">預設音訊</string>
+    <string name="settings_playback_audio_description">優先請求 Dolby 和 Hi-Res/FLAC，不可用時回退到普通音軌。</string>
+    <string name="settings_playback_audio_highest">最高</string>
+    <string name="settings_playback_audio_hi_res">Hi-Res/FLAC</string>
+    <string name="settings_playback_audio_dolby">Dolby Atmos</string>
+    <string name="settings_playback_audio_standard_highest">普通最高</string>
     <string name="settings_seek_preview_sprites_title">快轉預覽雪碧圖</string>
     <string name="settings_seek_preview_sprites_description">開啟後快轉倒退時顯示影片預覽圖，按確認跳轉；關閉後只顯示時間。</string>
     <string name="settings_air_jump_assistant_title">空降助手</string>
@@ -207,8 +213,12 @@
     <string name="player_danmaku_disabled_toast">彈幕已關閉</string>
     <string name="player_settings_title">播放設定</string>
     <string name="player_settings_quality">畫質</string>
+    <string name="player_settings_audio">音訊格式</string>
     <string name="player_settings_danmaku">彈幕設定</string>
     <string name="player_settings_speed">倍速播放</string>
+    <string name="player_audio_hi_res">Hi-Res/FLAC</string>
+    <string name="player_audio_dolby">Dolby Atmos</string>
+    <string name="player_audio_standard_kbps">普通 %1$sK</string>
     <string name="player_settings_danmaku_toggle">彈幕開關</string>
     <string name="player_settings_danmaku_opacity">彈幕透明度</string>
     <string name="player_settings_danmaku_font_size">彈幕字體大小</string>

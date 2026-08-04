@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.kirin.bilitv.core.i18n.ChineseTextVariant
 import com.kirin.bilitv.core.model.HomeSection
+import com.kirin.bilitv.core.player.PlaybackAudioPreference
 import com.kirin.bilitv.core.player.PlaybackCodecPreference
 import com.kirin.bilitv.core.player.PlaybackQualityPreference
 import com.kirin.bilitv.core.storage.biliDataStore
@@ -45,6 +46,7 @@ class AppSettingsStore(private val context: Context) {
       chineseTextVariant = ChineseTextVariant.fromKey(preferences[Keys.ChineseTextVariant]),
       playbackQualityPreference = PlaybackQualityPreference.fromKey(preferences[Keys.PlaybackQualityPreference]),
       playbackCodecPreference = PlaybackCodecPreference.fromKey(preferences[Keys.PlaybackCodecPreference]),
+      playbackAudioPreference = PlaybackAudioPreference.fromKey(preferences[Keys.PlaybackAudioPreference]),
       seekPreviewSpritesEnabled = preferences[Keys.SeekPreviewSpritesEnabled] ?: true,
       danmakuUpShortcutEnabled = preferences[Keys.DanmakuUpShortcutEnabled] ?: true,
       airJumpAssistantEnabled = preferences[Keys.AirJumpAssistantEnabled] ?: true,
@@ -105,6 +107,12 @@ class AppSettingsStore(private val context: Context) {
   suspend fun setPlaybackQualityPreference(preference: PlaybackQualityPreference) {
     context.biliDataStore.edit { preferences ->
       preferences[Keys.PlaybackQualityPreference] = preference.key
+    }
+  }
+
+  suspend fun setPlaybackAudioPreference(preference: PlaybackAudioPreference) {
+    context.biliDataStore.edit { preferences ->
+      preferences[Keys.PlaybackAudioPreference] = preference.key
     }
   }
 
@@ -195,6 +203,7 @@ class AppSettingsStore(private val context: Context) {
     val ChineseTextVariant = stringPreferencesKey("chinese_text_variant")
     val PlaybackQualityPreference = stringPreferencesKey("playback_quality_preference")
     val PlaybackCodecPreference = stringPreferencesKey("playback_codec_preference")
+    val PlaybackAudioPreference = stringPreferencesKey("playback_audio_preference")
     val SeekPreviewSpritesEnabled = booleanPreferencesKey("seek_preview_sprites_enabled")
     val DanmakuUpShortcutEnabled = booleanPreferencesKey("danmaku_up_shortcut_enabled")
     val AirJumpAssistantEnabled = booleanPreferencesKey("air_jump_assistant_enabled")

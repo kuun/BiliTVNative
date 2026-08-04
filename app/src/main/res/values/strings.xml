@@ -66,6 +66,12 @@
     <string name="settings_playback_codec_h264">H.264</string>
     <string name="settings_playback_codec_h265">H.265</string>
     <string name="settings_playback_codec_av1">AV1</string>
+    <string name="settings_playback_audio_title">&#x9ED8;&#x8BA4;&#x97F3;&#x9891;</string>
+    <string name="settings_playback_audio_description">&#x4F18;&#x5148;&#x8BF7;&#x6C42; Dolby &#x548C; Hi-Res/FLAC&#xFF0C;&#x4E0D;&#x53EF;&#x7528;&#x65F6;&#x56DE;&#x9000;&#x5230;&#x666E;&#x901A;&#x97F3;&#x8F68;&#x3002;</string>
+    <string name="settings_playback_audio_highest">&#x6700;&#x9AD8;</string>
+    <string name="settings_playback_audio_hi_res">Hi-Res/FLAC</string>
+    <string name="settings_playback_audio_dolby">Dolby Atmos</string>
+    <string name="settings_playback_audio_standard_highest">&#x666E;&#x901A;&#x6700;&#x9AD8;</string>
     <string name="settings_seek_preview_sprites_title">快进预览雪碧图</string>
     <string name="settings_seek_preview_sprites_description">开启后快进快退时显示视频预览图，按确认跳转；关闭后只显示时间。</string>
     <string name="settings_air_jump_assistant_title">&#x7A7A;&#x964D;&#x52A9;&#x624B;</string>
@@ -213,8 +219,12 @@
     <string name="player_comment_reply_count">%1$s&#x56DE;&#x590D;</string>
     <string name="player_settings_title">&#x64AD;&#x653E;&#x8BBE;&#x7F6E;</string>
     <string name="player_settings_quality">&#x753B;&#x8D28;</string>
+    <string name="player_settings_audio">&#x97F3;&#x9891;&#x683C;&#x5F0F;</string>
     <string name="player_settings_danmaku">&#x5F39;&#x5E55;&#x8BBE;&#x7F6E;</string>
     <string name="player_settings_speed">&#x500D;&#x901F;&#x64AD;&#x653E;</string>
+    <string name="player_audio_hi_res">Hi-Res/FLAC</string>
+    <string name="player_audio_dolby">Dolby Atmos</string>
+    <string name="player_audio_standard_kbps">&#x666E;&#x901A; %1$sK</string>
     <string name="player_settings_danmaku_toggle">&#x5F39;&#x5E55;&#x5F00;&#x5173;</string>
     <string name="player_settings_danmaku_opacity">&#x5F39;&#x5E55;&#x900F;&#x660E;&#x5EA6;</string>
     <string name="player_settings_danmaku_font_size">&#x5F39;&#x5E55;&#x5B57;&#x4F53;&#x5927;&#x5C0F;</string>

@@ -47,6 +47,7 @@ class PlaybackRepository(
     request: PlaybackRequest,
     codecPreference: PlaybackCodecPreference,
     qualityPreference: PlaybackQualityPreference,
+    audioPreference: PlaybackAudioPreference,
   ): PlaybackInfo {
     val sessData = sessionStore.sessData.first()
     val biliJct = sessionStore.biliJct.first()
@@ -96,6 +97,7 @@ class PlaybackRepository(
       data = root.obj("data") ?: root.obj("result") ?: JsonObject(emptyMap()),
       requestedQualityId = requestedQualityId,
       codecPreference = effectiveCodecPreference,
+      audioPreference = audioPreference,
       codecCapability = codecCapability,
     )
   }
@@ -413,6 +415,7 @@ class PlaybackRepository(
     data: JsonObject,
     requestedQualityId: Int,
     codecPreference: PlaybackCodecPreference,
+    audioPreference: PlaybackAudioPreference,
     codecCapability: CodecCapability,
   ): PlaybackInfo {
     val dash = data.obj("dash")
@@ -424,6 +427,15 @@ class PlaybackRepository(
       ?.mapNotNull { it.asObjectOrNull()?.toPlaybackTrack() }
       .orEmpty()
       .filter { track -> track.baseUrl.isNotBlank() }
+    val dolbyAudioTracks = (dash?.obj("dolby")?.get("audio") as? JsonArray)
+      ?.mapNotNull { it.asObjectOrNull()?.toPlaybackTrack() }
+      .orEmpty()
+      .filter { track -> track.baseUrl.isNotBlank() }
+    val flacAudioTracks = dash?.obj("flac")?.obj("audio")
+      ?.toPlaybackTrack()
+      ?.takeIf { track -> track.baseUrl.isNotBlank() }
+      ?.let(::listOf)
+      .orEmpty()
     val qualities = parseQualities(data)
     val selectedQuality = qualities.firstOrNull { quality -> quality.id == data.int("quality") }
       ?: qualities.firstOrNull()
@@ -444,6 +456,19 @@ class PlaybackRepository(
         selectedQualityTracks.joinToString { track -> "${track.id}:${track.width}x${track.height}:${track.codecLabel()}" },
     )
 
+    val selectedAudioTracks = selectAudioTracks(
+      standardTracks = audioTracks,
+      dolbyTracks = dolbyAudioTracks,
+      flacTracks = flacAudioTracks,
+      audioPreference = audioPreference,
+    )
+    val availableAudioTracks = selectAudioTracks(
+      standardTracks = audioTracks,
+      dolbyTracks = dolbyAudioTracks,
+      flacTracks = flacAudioTracks,
+      audioPreference = PlaybackAudioPreference.Highest,
+    )
+
     return PlaybackInfo(
       bvid = request.bvid,
       cid = request.cid,
@@ -452,9 +477,35 @@ class PlaybackRepository(
       qualities = qualities,
       selectedQuality = selectedQuality,
       videoTracks = selectedQualityTracks,
-      audioTracks = audioTracks.sortedByDescending(PlaybackTrack::bandwidth),
+      audioTracks = selectedAudioTracks,
+      availableAudioTracks = availableAudioTracks,
+      selectedAudioTrack = selectedAudioTracks.firstOrNull(),
       headers = headers,
     )
+  }
+
+  private fun selectAudioTracks(
+    standardTracks: List<PlaybackTrack>,
+    dolbyTracks: List<PlaybackTrack>,
+    flacTracks: List<PlaybackTrack>,
+    audioPreference: PlaybackAudioPreference,
+  ): List<PlaybackTrack> {
+    val standard = standardTracks
+      .filterNot { track -> track.isHighSpecAudio }
+      .sortedByDescending(PlaybackTrack::bandwidth)
+    val dolby = (dolbyTracks + standardTracks.filter { track -> track.isDolbyAudio })
+      .sortedByDescending(PlaybackTrack::bandwidth)
+    val flac = (flacTracks + standardTracks.filter { track -> track.isHiResAudio })
+      .sortedByDescending(PlaybackTrack::bandwidth)
+    val preferredTracks = when (audioPreference) {
+      PlaybackAudioPreference.Highest -> flac + dolby + standard
+      PlaybackAudioPreference.HiRes -> flac + standard
+      PlaybackAudioPreference.Dolby -> dolby + standard
+      PlaybackAudioPreference.StandardHighest -> standard
+    }
+    return preferredTracks.distinctBy { track ->
+      "${track.id}:${track.baseUrl}:${track.codecs}"
+    }
   }
 
   private fun JsonObject.toPlaybackTrack(): PlaybackTrack {
@@ -567,12 +618,14 @@ class PlaybackRepository(
     ) {
       fnval = fnval or FnvalAv1
     }
+    fnval = fnval or FnvalDolbyAudio
     return fnval
   }
 
   private companion object {
     const val FnvalDash = 16
     const val FnvalH265 = 64
+    const val FnvalDolbyAudio = 256
     const val FnvalAv1 = 1024
     const val PlaybackLogTag = "BiliTVNative:Playback"
   }

@@ -31,6 +31,7 @@ import com.kirin.bilitv.R
 import com.kirin.bilitv.core.i18n.ChineseTextVariant
 import com.kirin.bilitv.core.model.HomeSection
 import com.kirin.bilitv.core.player.CodecCapability
+import com.kirin.bilitv.core.player.PlaybackAudioPreference
 import com.kirin.bilitv.core.player.PlaybackCodecPreference
 import com.kirin.bilitv.core.player.PlaybackQualityPreference
 import com.kirin.bilitv.core.settings.AppSettings
@@ -60,6 +61,7 @@ fun SettingsScreen(
   onDanmakuUpShortcutEnabledChange: (Boolean) -> Unit,
   onPlaybackQualityPreferenceChange: (PlaybackQualityPreference) -> Unit,
   onPlaybackCodecPreferenceChange: (PlaybackCodecPreference) -> Unit,
+  onPlaybackAudioPreferenceChange: (PlaybackAudioPreference) -> Unit,
   onAirJumpAssistantEnabledChange: (Boolean) -> Unit,
   onConfirmPlaybackExitChange: (Boolean) -> Unit,
   onAutoPlayNextEpisodeChange: (Boolean) -> Unit,
@@ -86,6 +88,7 @@ fun SettingsScreen(
       SettingsItemChineseTextVariant to FocusRequester(),
       SettingsItemClearCache to FocusRequester(),
       SettingsItemPlaybackCodec to FocusRequester(),
+      SettingsItemPlaybackAudio to FocusRequester(),
       SettingsItemSeekPreviewSprites to FocusRequester(),
       SettingsItemDanmakuUpShortcut to FocusRequester(),
       SettingsItemAirJumpAssistant to FocusRequester(),
@@ -172,6 +175,7 @@ fun SettingsScreen(
         onSeekPreviewSpritesEnabledChange = onSeekPreviewSpritesEnabledChange,
         onPlaybackQualityPreferenceChange = onPlaybackQualityPreferenceChange,
         onPlaybackCodecPreferenceChange = onPlaybackCodecPreferenceChange,
+        onPlaybackAudioPreferenceChange = onPlaybackAudioPreferenceChange,
         onAirJumpAssistantEnabledChange = onAirJumpAssistantEnabledChange,
         onDanmakuUpShortcutEnabledChange = onDanmakuUpShortcutEnabledChange,
         onConfirmPlaybackExitChange = onConfirmPlaybackExitChange,
@@ -222,6 +226,7 @@ private fun SettingsBehaviorColumn(
   onSeekPreviewSpritesEnabledChange: (Boolean) -> Unit,
   onPlaybackQualityPreferenceChange: (PlaybackQualityPreference) -> Unit,
   onPlaybackCodecPreferenceChange: (PlaybackCodecPreference) -> Unit,
+  onPlaybackAudioPreferenceChange: (PlaybackAudioPreference) -> Unit,
   onAirJumpAssistantEnabledChange: (Boolean) -> Unit,
   onDanmakuUpShortcutEnabledChange: (Boolean) -> Unit,
   onConfirmPlaybackExitChange: (Boolean) -> Unit,
@@ -291,6 +296,27 @@ private fun SettingsBehaviorColumn(
           onClick = {
             val currentIndex = codecOptions.indexOf(configuredPreference).takeIf { it >= 0 } ?: 0
             onPlaybackCodecPreferenceChange(codecOptions[(currentIndex + 1) % codecOptions.size])
+          },
+        )
+      }
+      item(key = "playback-audio") {
+        val audioOptions = remember { PlaybackAudioPreference.entries.toList() }
+        val effectivePreference = settings.playbackAudioPreference
+        SettingsOptionRow(
+          title = stringResource(R.string.settings_playback_audio_title),
+          description = stringResource(R.string.settings_playback_audio_description),
+          value = effectivePreference.audioLabel(),
+          modifier = Modifier
+            .focusRequester(focusRequesters.getValue(SettingsItemPlaybackAudio))
+            .settingsBoundaryKeys(
+              itemIndex = SettingsItemPlaybackAudio,
+              onMoveSettingFocus = onMoveSettingFocus,
+              onMoveLeftToNav = onMoveLeftToNav,
+            ),
+          onFocused = { onSettingFocused(SettingsItemPlaybackAudio) },
+          onClick = {
+            val currentIndex = audioOptions.indexOf(effectivePreference).takeIf { it >= 0 } ?: 0
+            onPlaybackAudioPreferenceChange(audioOptions[(currentIndex + 1) % audioOptions.size])
           },
         )
       }
@@ -622,15 +648,16 @@ private fun SettingsSectionTitle(
 private const val SettingsItemPlaybackHeader = 0
 private const val SettingsItemPlaybackQuality = 1
 private const val SettingsItemPlaybackCodec = 2
-private const val SettingsItemSeekPreviewSprites = 3
-private const val SettingsItemAirJumpAssistant = 4
-private const val SettingsItemDanmakuUpShortcut = 5
-private const val SettingsItemConfirmPlaybackExit = 6
-private const val SettingsItemAutoPlayNextEpisode = 7
-private const val SettingsItemAutoPlayRelatedVideo = 8
-private const val SettingsItemAutoReturnHomeOnCompletion = 9
-private const val SettingsItemShowClock = 10
-private const val SettingsItemShowMiniProgressBar = 11
+private const val SettingsItemPlaybackAudio = 3
+private const val SettingsItemSeekPreviewSprites = 4
+private const val SettingsItemAirJumpAssistant = 5
+private const val SettingsItemDanmakuUpShortcut = 6
+private const val SettingsItemConfirmPlaybackExit = 7
+private const val SettingsItemAutoPlayNextEpisode = 8
+private const val SettingsItemAutoPlayRelatedVideo = 9
+private const val SettingsItemAutoReturnHomeOnCompletion = 10
+private const val SettingsItemShowClock = 11
+private const val SettingsItemShowMiniProgressBar = 12
 private const val SettingsItemVisualPerformanceMode = 13
 private const val SettingsItemLiquidGlassCards = 14
 private const val SettingsItemHomeThemeVariant = 15
@@ -643,6 +670,7 @@ private const val SettingsItemAbout = 21
 private val SettingsFocusableItems = listOf(
   SettingsItemPlaybackQuality,
   SettingsItemPlaybackCodec,
+  SettingsItemPlaybackAudio,
   SettingsItemSeekPreviewSprites,
   SettingsItemAirJumpAssistant,
   SettingsItemDanmakuUpShortcut,

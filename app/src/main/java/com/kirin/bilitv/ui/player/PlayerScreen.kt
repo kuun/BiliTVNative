@@ -100,6 +100,7 @@ import com.kirin.bilitv.core.player.DanmakuEntry
 import com.kirin.bilitv.core.player.DanmakuSettings
 import com.kirin.bilitv.core.player.DanmakuSettingsStore
 import com.kirin.bilitv.core.player.PlaybackInfo
+import com.kirin.bilitv.core.player.PlaybackAudioPreference
 import com.kirin.bilitv.core.player.PlaybackCodecPreference
 import com.kirin.bilitv.core.player.PlaybackQuality
 import com.kirin.bilitv.core.player.PlaybackQualityPreference
@@ -146,6 +147,7 @@ fun PlayerScreen(
   playbackHttpClient: OkHttpClient,
   playbackCodecPreference: PlaybackCodecPreference,
   playbackQualityPreference: PlaybackQualityPreference,
+  playbackAudioPreference: PlaybackAudioPreference,
   seekPreviewSpritesEnabled: Boolean,
   airJumpAssistantEnabled: Boolean,
   confirmPlaybackExit: Boolean,
@@ -646,6 +648,10 @@ fun PlayerScreen(
       PlayerPanel.Quality -> selectedQuality?.let { quality ->
         (playerState as? PlayerScreenState.Ready)?.info?.qualities?.indexOfFirst { it.id == quality.id }
       }?.takeIf { it >= 0 } ?: 0
+      PlayerPanel.Audio -> (playerState as? PlayerScreenState.Ready)?.info?.let { info ->
+        val tracks = info.availableAudioTracks.ifEmpty { info.audioTracks }
+        tracks.indexOfFirst { track -> info.selectedAudioTrack?.matchesTrack(track) == true }
+      }?.takeIf { it >= 0 } ?: 0
       PlayerPanel.Speed -> PlayerSpeedOptions.indexOf(playbackSpeed).takeIf { it >= 0 } ?: 2
       PlayerPanel.Episodes -> metadata?.pages
         ?.indexOfFirst { episode ->
@@ -1025,8 +1031,9 @@ fun PlayerScreen(
   fun panelItemCount(): Int {
     val info = (playerState as? PlayerScreenState.Ready)?.info
     return when (activePanel) {
-      PlayerPanel.Main -> 3
+      PlayerPanel.Main -> 4
       PlayerPanel.Quality -> info?.qualities?.size?.coerceAtLeast(1) ?: 1
+      PlayerPanel.Audio -> info?.availableAudioTracks?.ifEmpty { info.audioTracks }?.size?.coerceAtLeast(1) ?: 1
       PlayerPanel.Danmaku -> 7
       PlayerPanel.Speed -> PlayerSpeedOptions.size
       PlayerPanel.Episodes -> metadata?.pages?.size ?: 0
@@ -1059,8 +1066,9 @@ fun PlayerScreen(
     when (activePanel) {
       PlayerPanel.Main -> when (focusedPanelIndex) {
         0 -> openPanel(PlayerPanel.Quality)
-        1 -> openPanel(PlayerPanel.Danmaku)
-        2 -> openPanel(PlayerPanel.Speed)
+        1 -> openPanel(PlayerPanel.Audio)
+        2 -> openPanel(PlayerPanel.Danmaku)
+        3 -> openPanel(PlayerPanel.Speed)
       }
       PlayerPanel.Quality -> {
         val quality = info.qualities.getOrNull(focusedPanelIndex) ?: return
@@ -1070,6 +1078,15 @@ fun PlayerScreen(
           startPositionMs = player.currentPosition.takeIf { it > 0L } ?: playbackPositionState.longValue,
         )
         latestOnPlaybackRequestChanged.value(playerLoadStateHolder.viewState.activeRequest)
+      }
+      PlayerPanel.Audio -> {
+        val tracks = info.availableAudioTracks.ifEmpty { info.audioTracks }
+        val track = tracks.getOrNull(focusedPanelIndex) ?: return
+        val readyState = playerLoadStateHolder.selectAudioTrack(
+          track = track,
+          startPositionMs = player.currentPosition.takeIf { it > 0L } ?: playbackPositionState.longValue,
+        ) ?: return
+        preparePlayback(readyState)
       }
       PlayerPanel.Danmaku -> {
         when (focusedPanelIndex) {
@@ -1217,6 +1234,7 @@ fun PlayerScreen(
       PlayerControl.Settings -> openPanel(PlayerPanel.Main)
       PlayerControl.Episodes -> openEpisodesPanel()
       PlayerControl.Quality -> openPanel(PlayerPanel.Quality)
+      PlayerControl.Audio -> openPanel(PlayerPanel.Audio)
       PlayerControl.Up -> openUpVideos(UpVideoOrderLatest)
       PlayerControl.Related -> {
         openVideoListPanel(
@@ -1266,6 +1284,7 @@ fun PlayerScreen(
       }
       PlayerPanel.Comments -> openComments()
       PlayerPanel.Quality,
+      PlayerPanel.Audio,
       PlayerPanel.Speed,
       PlayerPanel.None -> Unit
     }
@@ -1373,7 +1392,7 @@ fun PlayerScreen(
   }
 
   val effectivePlaybackCodecPreference = fallbackCodecPreference ?: playbackCodecPreference
-  LaunchedEffect(activeRequest, effectivePlaybackCodecPreference, playbackQualityPreference, loadRetryToken) {
+  LaunchedEffect(activeRequest, effectivePlaybackCodecPreference, playbackQualityPreference, playbackAudioPreference, loadRetryToken) {
 	    cancelPendingCompletionAction()
 	    previewPositionMs = null
 	    touchGestureStateHolder.clearSeek()
@@ -1399,6 +1418,7 @@ fun PlayerScreen(
     val readyState = playerLoadStateHolder.load(
       codecPreference = effectivePlaybackCodecPreference,
       qualityPreference = playbackQualityPreference,
+      audioPreference = playbackAudioPreference,
       missingCidMessage = context.getString(R.string.player_error_missing_cid),
       emptyTracksMessage = context.getString(R.string.player_error_empty_tracks),
     ) ?: return@LaunchedEffect
@@ -1645,6 +1665,7 @@ fun PlayerScreen(
               activePanel != PlayerPanel.None -> {
                 when (activePanel) {
                   PlayerPanel.Quality,
+                  PlayerPanel.Audio,
                   PlayerPanel.Speed -> openPanel(PlayerPanel.Main)
                   PlayerPanel.Danmaku -> {
                     if (!adjustFocusedDanmakuSetting(-1)) {

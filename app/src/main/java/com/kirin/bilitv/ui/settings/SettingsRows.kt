@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.kirin.bilitv.R
 import com.kirin.bilitv.core.i18n.ChineseTextVariant
 import com.kirin.bilitv.core.player.CodecCapability
+import com.kirin.bilitv.core.player.PlaybackAudioPreference
 import com.kirin.bilitv.core.player.PlaybackCodecPreference
 import com.kirin.bilitv.core.player.PlaybackQualityPreference
 import com.kirin.bilitv.core.settings.AppVisualPerformanceMode
@@ -246,5 +247,15 @@ internal fun PlaybackCodecPreference.codecLabel(): String {
     PlaybackCodecPreference.H264 -> stringResource(R.string.settings_playback_codec_h264)
     PlaybackCodecPreference.H265 -> stringResource(R.string.settings_playback_codec_h265)
     PlaybackCodecPreference.Av1 -> stringResource(R.string.settings_playback_codec_av1)
+  }
+}
+
+@Composable
+internal fun PlaybackAudioPreference.audioLabel(): String {
+  return when (this) {
+    PlaybackAudioPreference.Highest -> stringResource(R.string.settings_playback_audio_highest)
+    PlaybackAudioPreference.HiRes -> stringResource(R.string.settings_playback_audio_hi_res)
+    PlaybackAudioPreference.Dolby -> stringResource(R.string.settings_playback_audio_dolby)
+    PlaybackAudioPreference.StandardHighest -> stringResource(R.string.settings_playback_audio_standard_highest)
   }
 }

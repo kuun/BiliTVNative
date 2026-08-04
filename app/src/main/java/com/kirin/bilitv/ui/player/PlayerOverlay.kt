@@ -76,6 +76,7 @@ import com.kirin.bilitv.core.player.PlaybackInfo
 import com.kirin.bilitv.core.player.PlaybackEpisode
 import com.kirin.bilitv.core.player.PlaybackQuality
 import com.kirin.bilitv.core.player.PlaybackRequest
+import com.kirin.bilitv.core.player.PlaybackTrack
 import com.kirin.bilitv.core.player.PlaybackVideoMetadata
 import com.kirin.bilitv.core.player.PlayerComment
 import com.kirin.bilitv.core.player.VideoshotData
@@ -104,12 +105,14 @@ internal enum class PlayerControl {
   Related,
   Settings,
   Quality,
+  Audio,
 }
 
 internal enum class PlayerPanel {
   None,
   Main,
   Quality,
+  Audio,
   Danmaku,
   Speed,
   Episodes,
@@ -278,6 +281,7 @@ internal fun BoxScope.PlayerSharedOverlay(
     when (activePanel) {
       PlayerPanel.Main,
       PlayerPanel.Quality,
+      PlayerPanel.Audio,
       PlayerPanel.Danmaku,
       PlayerPanel.Speed -> PlayerSettingsPanel(
         activePanel = activePanel,
@@ -931,7 +935,8 @@ private fun PlayerBottomOverlay(
       modifier = Modifier.fillMaxWidth(),
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      val iconControls = PlayerControl.entries.filterNot { control -> control == PlayerControl.Quality }
+      val textControls = setOf(PlayerControl.Quality, PlayerControl.Audio)
+      val iconControls = PlayerControl.entries.filterNot { control -> control in textControls }
       iconControls.forEachIndexed { index, control ->
         val focused = controlFocusVisible && !progressFocused && focusedControl == control
         val onClick = {
@@ -974,6 +979,16 @@ private fun PlayerBottomOverlay(
         onClick = {
           Log.i(PlayerControlLogTag, "PlayerControl tvOverlayButtonClick control=${PlayerControl.Quality}")
           onControlSelected(PlayerControl.Quality)
+        },
+      )
+      Spacer(modifier = Modifier.width(BiliSpacing.Md))
+      PlayerQualityButton(
+        text = info.selectedAudioTrack?.shortAudioLabel().orEmpty(),
+        contentDescription = stringResource(R.string.player_settings_audio),
+        focused = controlFocusVisible && !progressFocused && focusedControl == PlayerControl.Audio,
+        onClick = {
+          Log.i(PlayerControlLogTag, "PlayerControl tvOverlayButtonClick control=${PlayerControl.Audio}")
+          onControlSelected(PlayerControl.Audio)
         },
       )
     }
@@ -2357,14 +2372,24 @@ private fun PlayerSettingsPanel(
               onClick = onRowClick?.let { click -> { click(0) } },
             )
           }
+          item(key = "audio") {
+            SettingsRow(
+              iconRes = R.drawable.ic_player_volume,
+              title = stringResource(R.string.player_settings_audio),
+              value = info.selectedAudioTrack?.audioLabel().orEmpty(),
+              focused = focusedIndex == 1,
+              trailingChevron = true,
+              onClick = onRowClick?.let { click -> { click(1) } },
+            )
+          }
           item(key = "danmaku") {
             SettingsRow(
               iconRes = R.drawable.ic_player_subtitles,
               title = stringResource(R.string.player_settings_danmaku),
               value = if (danmakuSettings.enabled) stringResource(R.string.player_value_on) else stringResource(R.string.player_value_off),
-              focused = focusedIndex == 1,
+              focused = focusedIndex == 2,
               trailingChevron = true,
-              onClick = onRowClick?.let { click -> { click(1) } },
+              onClick = onRowClick?.let { click -> { click(2) } },
             )
           }
           item(key = "speed") {
@@ -2372,9 +2397,9 @@ private fun PlayerSettingsPanel(
               iconRes = R.drawable.ic_player_speed,
               title = stringResource(R.string.player_settings_speed),
               value = playbackSpeed.speedText(),
-              focused = focusedIndex == 2,
+              focused = focusedIndex == 3,
               trailingChevron = true,
-              onClick = onRowClick?.let { click -> { click(2) } },
+              onClick = onRowClick?.let { click -> { click(3) } },
             )
           }
         }
@@ -2387,6 +2412,20 @@ private fun PlayerSettingsPanel(
               value = if (quality.id == info.selectedQuality.id) stringResource(R.string.player_value_current) else "",
               focused = focusedIndex == index,
               trailingCheck = quality.id == info.selectedQuality.id,
+              onClick = onRowClick?.let { click -> { click(index) } },
+            )
+          }
+        }
+        PlayerPanel.Audio -> {
+          val tracks = info.availableAudioTracks.ifEmpty { info.audioTracks }
+          itemsIndexed(tracks, key = { _, track -> "${track.id}:${track.codecs}:${track.baseUrl}" }) { index, track ->
+            val selected = info.selectedAudioTrack?.matchesTrack(track) == true
+            SettingsRow(
+              iconRes = R.drawable.ic_player_volume,
+              title = track.audioLabel(),
+              value = if (selected) stringResource(R.string.player_value_current) else "",
+              focused = focusedIndex == index,
+              trailingCheck = selected,
               onClick = onRowClick?.let { click -> { click(index) } },
             )
           }
@@ -2434,8 +2473,9 @@ private fun PlayerSettingsPanel(
 
 private fun PlayerPanel.settingsRowCount(info: PlaybackInfo): Int {
   return when (this) {
-    PlayerPanel.Main -> 3
+    PlayerPanel.Main -> 4
     PlayerPanel.Quality -> info.qualities.size.coerceAtLeast(1)
+    PlayerPanel.Audio -> info.availableAudioTracks.ifEmpty { info.audioTracks }.size.coerceAtLeast(1)
     PlayerPanel.Danmaku -> DanmakuSettingsRowCount
     PlayerPanel.Speed -> PlayerSpeedOptions.size
     PlayerPanel.Episodes,
@@ -2725,6 +2765,7 @@ private fun PlayerControl.iconRes(): Int {
     PlayerControl.Settings -> R.drawable.ic_nav_settings
     PlayerControl.Danmaku -> error("Danmaku control uses a custom glyph button")
     PlayerControl.Quality -> error("Quality control uses a text button")
+    PlayerControl.Audio -> error("Audio control uses a text button")
   }
 }
 
@@ -2734,6 +2775,7 @@ private val PlayerControl.labelRes: Int
     PlayerControl.Episodes -> R.string.player_control_episodes
     PlayerControl.Danmaku -> R.string.player_danmaku_on
     PlayerControl.Quality -> R.string.player_settings_quality
+    PlayerControl.Audio -> R.string.player_settings_audio
     PlayerControl.Up -> R.string.player_control_up
     PlayerControl.Related -> R.string.player_control_related
     PlayerControl.Settings -> R.string.player_control_settings
@@ -2776,6 +2818,7 @@ private fun PlayerTouchAction.isActive(activePanel: PlayerPanel): Boolean {
     PlayerTouchAction.Comments -> activePanel == PlayerPanel.Comments
     PlayerTouchAction.Settings -> activePanel == PlayerPanel.Main ||
       activePanel == PlayerPanel.Quality ||
+      activePanel == PlayerPanel.Audio ||
       activePanel == PlayerPanel.Danmaku ||
       activePanel == PlayerPanel.Speed
   }
@@ -2785,6 +2828,7 @@ private val PlayerPanel.titleRes: Int
   get() = when (this) {
     PlayerPanel.Main -> R.string.player_settings_title
     PlayerPanel.Quality -> R.string.player_settings_quality
+    PlayerPanel.Audio -> R.string.player_settings_audio
     PlayerPanel.Danmaku -> R.string.player_settings_danmaku
     PlayerPanel.Speed -> R.string.player_settings_speed
     PlayerPanel.Episodes -> R.string.player_panel_episodes
@@ -2796,6 +2840,31 @@ private val PlayerPanel.titleRes: Int
 
 private fun String.withCodecLabel(codec: String): String {
   return if (codec.isBlank()) this else "$this($codec)"
+}
+
+@Composable
+private fun PlaybackTrack.audioLabel(): String {
+  return when {
+    isHiResAudio -> stringResource(R.string.player_audio_hi_res)
+    isDolbyAudio -> stringResource(R.string.player_audio_dolby)
+    id == AudioId192K -> stringResource(R.string.player_audio_standard_kbps, "192")
+    id == AudioId132K -> stringResource(R.string.player_audio_standard_kbps, "132")
+    id == AudioId64K -> stringResource(R.string.player_audio_standard_kbps, "64")
+    codecs.isNotBlank() -> codecs
+    else -> id.toString()
+  }
+}
+
+private fun PlaybackTrack.shortAudioLabel(): String {
+  return when {
+    isHiResAudio -> "Hi-Res"
+    isDolbyAudio -> "Dolby"
+    id == AudioId192K -> "192K"
+    id == AudioId132K -> "132K"
+    id == AudioId64K -> "64K"
+    codecs.isNotBlank() -> codecs.uppercase(Locale.US)
+    else -> id.toString()
+  }
 }
 
 private fun PlaybackQuality.shortLabel(): String {
@@ -2936,6 +3005,9 @@ private const val UpPanelChipFocusedBorderAlpha = 0.82f
 private const val UpPanelChipSelectedBorderAlpha = 0.54f
 private const val UpPanelChipRestingBorderAlpha = 0.16f
 private const val DanmakuSettingsRowCount = 7
+private const val AudioId64K = 30216
+private const val AudioId132K = 30232
+private const val AudioId192K = 30280
 private const val SeekPreviewSpriteScale = 2f
 private const val SeekPreviewSpriteMaxWidth = 360f
 private const val SeekPreviewSpriteMaxHeight = 220f
